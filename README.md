@@ -1,18 +1,21 @@
 # Smart Leave & Absence Management Engine
 
-A React-based demonstration of an employee leave portal with an HR review screen. The long-term project plan is to connect the portal to AWS services for authentication, leave storage, approvals, and notifications.
+A React-based demonstration of employee, manager, and HR leave portals. The long-term project plan is to connect the frontend to AWS services for authentication, leave storage, approvals, and notifications.
 
 > **Current status:** This repository currently contains a frontend demo. Sign-in uses demo-only credentials defined in the client code. Leave requests, balances, and approval changes are held in browser memory and are lost when the page is refreshed. Cognito, API Gateway, Lambda, DynamoDB, Step Functions, SNS, SES, and EventBridge are not connected to the running interface yet. Use fake data only.
 
 ## Current demo features
 
-- Employee portal selection and demo sign-in.
-- Leave request form, balance cards, and request history.
-- HR view to review, approve, or reject requests.
-- CSV export of the requests currently held in the browser.
+- Employee, manager, and HR portal selection with demo sign-in.
+- Employee leave request form, balance cards, and request history.
+- Manager view to review, approve, or reject employee requests.
+- Requests longer than five days move to HR after manager approval; shorter requests are final after manager approval.
+- HR view to review requests awaiting HR approval and make the final decision.
+- Team absence calendar component with month navigation. Employee names and absences are not hard-coded; the calendar stays empty until connected to employee and leave data.
+- CSV export of requests currently held in the browser.
 - Responsive React interface with Lucide icons.
 
-These are frontend demonstration behaviors. They do not enforce leave quotas, prevent overlapping requests, persist records, or provide secure role-based access on a server.
+These are frontend demonstration behaviors. They do not enforce leave quotas on the server, prevent overlapping requests, persist records, load employees from DynamoDB, send notifications, or provide secure role-based access on a server. All request, balance, and approval state is local to the browser session.
 
 ## Repository structure
 
@@ -108,6 +111,6 @@ The API helper and AWS configuration files are scaffolding; placeholder URLs and
 | Sushant | Data and logic | DynamoDB table design, overlap checks, and atomic balance updates |
 | Omsri | Workflows and messaging | Approval workflow, signed action links, and notifications |
 | Payal | Infrastructure and security | Cognito, infrastructure automation, and scheduled jobs |
-| Preethi | Frontend and hosting | Employee/HR portal, calendar and reports as backend data becomes available, S3 and CloudFront hosting |
+| Preethi | Frontend and hosting | Employee/manager/HR portals, team calendar, reports, S3 and CloudFront hosting |
 
 These are planned responsibilities; the status of each AWS service should be updated as the team implements and deploys it.

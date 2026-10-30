@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
-import { 
-  Calendar, Clock, CheckCircle, XCircle, AlertCircle, 
-  FileSpreadsheet, Shield, Search, PlusCircle, LogOut, 
-  User, Building, Check, X, ArrowRight, Eye, Play
+import {
+  Calendar, Clock, CheckCircle, XCircle, AlertCircle,
+  FileSpreadsheet, Shield, Search, PlusCircle, LogOut,
+  User, Building, Users, Check, X, ArrowRight, Eye, Play
 } from 'lucide-react';
+import TeamCalendar from './components/Shared/TeamCalendar';
 
 export default function App() {
   // Authentication State
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [authRole, setAuthRole] = useState('employee'); // 'employee' or 'hr'
+  const [authRole, setAuthRole] = useState('employee'); // 'employee', 'manager', or 'hr'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -63,20 +64,25 @@ export default function App() {
       email === 'employee.demo@company.com' &&
       password === 'Employee123!';
 
+    const isManagerLogin =
+      authRole === 'manager' &&
+      email === 'manager.demo@company.com' &&
+      password === 'Manager123!';
+
     const isHrLogin =
       authRole === 'hr' &&
       email === 'hr.demo@company.com' &&
       password === 'HrAdmin123!';
 
-    if (!isEmployeeLogin && !isHrLogin) {
+    if (!isEmployeeLogin && !isManagerLogin && !isHrLogin) {
       alert('Those demo credentials do not match the selected portal.');
       return;
     }
 
     setLoggedInUser({
       email,
-      role: authRole === 'hr' ? 'HR Administrator' : 'Employee',
-      id: authRole === 'hr' ? 'HR-001' : 'EMP-101'
+      role: authRole === 'hr' ? 'HR Administrator' : authRole === 'manager' ? 'Manager' : 'Employee',
+      id: authRole === 'hr' ? 'HR-001' : authRole === 'manager' ? 'MGR-001' : 'EMP-101'
     });
 
     setIsAuthenticated(true);
@@ -121,33 +127,51 @@ export default function App() {
     alert('Leave application submitted successfully!');
   };
 
-  // Handle HR Approval / Rejection
-  const handleStatusChange = (requestId, newStatus) => {
-    const comment = hrComments[requestId] || (newStatus === 'Approved' ? 'Approved by HR' : 'Rejected by HR');
+  // Demo approval stages: manager approval first, then HR for requests over five days.
+  const handleStatusChange = (requestId, newStatus, reviewer = 'HR') => {
+    const request = leaveRequests.find((item) => item.id === requestId);
+    if (!request) return;
 
-    setLeaveRequests(leaveRequests.map(req => {
-      if (req.id === requestId) {
-        if (newStatus === 'Approved') {
-          let typeKey = req.leaveType.toLowerCase().split(' ')[0];
-          if (req.leaveType.includes('Loss of Pay') || req.leaveType.includes('Unpaid')) {
-            typeKey = 'lop';
-          }
-          if (balances[typeKey]) {
-            setBalances(prev => ({
-              ...prev,
-              [typeKey]: {
-                ...prev[typeKey],
-                used: prev[typeKey].used + req.duration
-              }
-            }));
-          }
-        }
-        return { ...req, status: newStatus, hrComment: comment };
+    const defaultComment = newStatus === 'Pending HR'
+      ? 'Manager approved; awaiting HR review'
+      : `${newStatus === 'Approved' ? 'Approved' : 'Rejected'} by ${reviewer}`;
+    const comment = hrComments[requestId] || defaultComment;
+
+    if (newStatus === 'Approved' && request.status !== 'Approved') {
+      let typeKey = request.leaveType.toLowerCase().split(' ')[0];
+      if (request.leaveType.includes('Loss of Pay') || request.leaveType.includes('Unpaid')) {
+        typeKey = 'lop';
       }
-      return req;
-    }));
+      if (balances[typeKey]) {
+        setBalances((previous) => ({
+          ...previous,
+          [typeKey]: {
+            ...previous[typeKey],
+            used: previous[typeKey].used + request.duration
+          }
+        }));
+      }
+    }
+
+    setLeaveRequests((previous) => previous.map((item) =>
+      item.id === requestId
+        ? { ...item, status: newStatus, hrComment: comment }
+        : item
+    ));
   };
 
+  const handleManagerDecision = (requestId, decision) => {
+    const request = leaveRequests.find((item) => item.id === requestId);
+    if (!request || request.status !== 'Pending') return;
+
+    if (decision === 'Rejected') {
+      handleStatusChange(requestId, 'Rejected', 'Manager');
+    } else if (request.duration > 5) {
+      handleStatusChange(requestId, 'Pending HR', 'Manager');
+    } else {
+      handleStatusChange(requestId, 'Approved', 'Manager');
+    }
+  };
   // CSV Export Functionality
   const exportToCSV = () => {
     if (leaveRequests.length === 0) {
@@ -179,15 +203,18 @@ export default function App() {
   };
 
   // Filtered Requests based on user and search
-  const filteredRequests = leaveRequests.filter(req => {
+  const filteredRequests = leaveRequests.filter((req) => {
     const matchesSearch = req.leaveType.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          req.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          req.employeeEmail.toLowerCase().includes(searchTerm.toLowerCase());
+      req.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      req.employeeEmail.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'All' || req.status === statusFilter;
-    const matchesRoleScope = authRole === 'hr' ? true : req.employeeEmail === loggedInUser?.email;
+    const matchesRoleScope = authRole !== 'employee' || req.employeeEmail === loggedInUser?.email;
     return matchesSearch && matchesStatus && matchesRoleScope;
   });
 
+  // These arrays are intentionally empty until the frontend is connected to the employee and leave APIs.
+  const calendarTeamMembers = [];
+  const calendarEvents = [];
   // ================= 1. SIGN IN SCREEN WITH PREVIEW BYPASS =================
   if (!isAuthenticated) {
     const selectedPortalStyle = {
@@ -254,7 +281,7 @@ export default function App() {
 
             <div style={{
               display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
+              gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
               gap: '10px',
               marginBottom: '22px'
             }}>
@@ -274,6 +301,21 @@ export default function App() {
                 <div style={{ fontSize: '12px', marginTop: '3px' }}>Apply and view leave</div>
               </button>
 
+              <button
+                type="button"
+                onClick={() => setAuthRole('manager')}
+                style={{
+                  ...(authRole === 'manager' ? selectedPortalStyle : portalStyle),
+                  borderRadius: '12px',
+                  padding: '14px 10px',
+                  cursor: 'pointer',
+                  textAlign: 'left'
+                }}
+              >
+                <Users size={19} />
+                <div style={{ fontWeight: '700', marginTop: '8px' }}>Manager</div>
+                <div style={{ fontSize: '12px', marginTop: '3px' }}>Review team requests</div>
+              </button>
               <button
                 type="button"
                 onClick={() => setAuthRole('hr')}
@@ -512,14 +554,34 @@ export default function App() {
                 Export CSV Report
               </button>
             </div>
+            <TeamCalendar teamMembers={calendarTeamMembers} leaveEvents={calendarEvents} />
           </div>
         )}
 
+        {/* ================= MANAGER PORTAL ================= */}
+        {authRole === 'manager' && (
+          <div>
+            <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '24px', marginBottom: '24px', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+              <div>
+                <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 'bold', color: '#20332d' }}>Manager Portal</h2>
+                <p style={{ margin: '5px 0 0', color: '#64748b', fontSize: '14px' }}>Review team leave requests and see approved absences by day.</p>
+              </div>
+              <div style={{ padding: '10px 14px', borderRadius: '10px', background: '#e8f4ef', color: '#147d6b', fontWeight: '700' }}>
+                {leaveRequests.filter((request) => request.status === 'Pending').length} pending approval(s)
+              </div>
+            </div>
+
+            <TeamCalendar teamMembers={calendarTeamMembers} leaveEvents={calendarEvents} />
+            <div style={{ margin: '0 0 22px', color: '#64748b', fontSize: '13px' }}>
+              Requests longer than five days move to HR after manager approval.
+            </div>
+          </div>
+        )}
         {/* ================= SHARED LEAVE REQUESTS TABLE ================= */}
         <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
             <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 'bold', color: '#0f172a' }}>
-              {authRole === 'hr' ? 'All User Leave Applications' : 'My Leave Applications'}
+              {authRole === 'hr' ? 'All User Leave Applications' : authRole === 'manager' ? 'Team Leave Requests' : 'My Leave Applications'}
             </h3>
 
             <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
@@ -541,6 +603,7 @@ export default function App() {
               >
                 <option value="All">All Statuses</option>
                 <option value="Pending">Pending</option>
+                <option value="Pending HR">Pending HR Review</option>
                 <option value="Approved">Approved</option>
                 <option value="Rejected">Rejected</option>
               </select>
@@ -559,13 +622,14 @@ export default function App() {
                   <th style={{ padding: '12px' }}>Reason</th>
                   <th style={{ padding: '12px' }}>Status</th>
                   {authRole === 'hr' && <th style={{ padding: '12px' }}>HR Actions</th>}
+                  {authRole === 'manager' && <th style={{ padding: '12px' }}>Manager Actions</th>}
                 </tr>
               </thead>
               <tbody>
                 {filteredRequests.length === 0 ? (
                   <tr>
-                    <td colSpan={authRole === 'hr' ? 8 : 7} style={{ textAlign: 'center', padding: '32px', color: '#94a3b8' }}>
-                      No leave applications found. Apply for leave to view records here.
+                    <td colSpan={authRole === 'hr' || authRole === 'manager' ? 8 : 7} style={{ textAlign: 'center', padding: '32px', color: '#94a3b8' }}>
+                      {authRole === 'manager' ? 'No team requests yet. Employee requests will appear here.' : 'No leave applications found. Apply for leave to view records here.'}
                     </td>
                   </tr>
                 ) : (
@@ -594,7 +658,7 @@ export default function App() {
                       {/* HR Actions */}
                       {authRole === 'hr' && (
                         <td style={{ padding: '12px' }}>
-                          {req.status === 'Pending' ? (
+                          {req.status === 'Pending HR' ? (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                               <input 
                                 type="text"
@@ -619,7 +683,29 @@ export default function App() {
                               </div>
                             </div>
                           ) : (
-                            <span style={{ fontSize: '12px', color: '#94a3b8' }}>{req.hrComment || 'Recorded'}</span>
+                            <span style={{ fontSize: '12px', color: '#94a3b8' }}>{req.status === 'Pending' ? 'Awaiting manager approval' : req.hrComment || 'Recorded'}</span>
+                          )}
+                        </td>
+                      )}
+                      {authRole === 'manager' && (
+                        <td style={{ padding: '12px' }}>
+                          {req.status === 'Pending' ? (
+                            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                              <button
+                                onClick={() => handleManagerDecision(req.id, 'Approved')}
+                                style={{ padding: '6px 9px', borderRadius: '6px', border: 'none', backgroundColor: '#147d6b', color: '#ffffff', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}
+                              >
+                                Approve
+                              </button>
+                              <button
+                                onClick={() => handleManagerDecision(req.id, 'Rejected')}
+                                style={{ padding: '6px 9px', borderRadius: '6px', border: 'none', backgroundColor: '#b74343', color: '#ffffff', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}
+                              >
+                                Reject
+                              </button>
+                            </div>
+                          ) : (
+                            <span style={{ fontSize: '12px', color: '#64748b' }}>{req.status === 'Pending' ? 'Awaiting manager approval' : req.hrComment || 'Recorded'}</span>
                           )}
                         </td>
                       )}
@@ -635,4 +721,8 @@ export default function App() {
     </div>
   );
 }
+
+
+
+
 

@@ -1,728 +1,698 @@
 import React, { useState } from 'react';
-import {
-  Calendar, Clock, CheckCircle, XCircle, AlertCircle,
-  FileSpreadsheet, Shield, Search, PlusCircle, LogOut,
-  User, Building, Users, Check, X, ArrowRight, Eye, Play
-} from 'lucide-react';
 import TeamCalendar from './components/Shared/TeamCalendar';
+import {
+  CalendarDays,
+  UserRound,
+  UsersRound,
+  Building2,
+  LogOut,
+  Clock3,
+  FileSpreadsheet
+} from 'lucide-react';
+import {
+  signInWithCognito,
+  signOutFromCognito
+} from './services/auth';
+import {
+  fetchDashboard,
+  submitLeaveRequest,
+  approveLeaveRequest
+} from './services/api';
+
+const leaveLabels = {
+  SICK: 'Sick Leave',
+  CASUAL: 'Casual Leave',
+  EARNED: 'Earned Leave',
+  UNPAID: 'Loss of Pay'
+};
+
+const statusLabel = (status) =>
+  String(status || '').replaceAll('_', ' ');
+
+const asNumber = (value) => {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : 0;
+};
 
 export default function App() {
-  // Authentication State
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [authRole, setAuthRole] = useState('employee'); // 'employee', 'manager', or 'hr'
+  const [portal, setPortal] = useState('employee');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  
-  // User Profile Session
-  const [loggedInUser, setLoggedInUser] = useState(null);
-
-  // Active View State inside Portal
-  const [activeTab, setActiveTab] = useState('dashboard');
-
-  // Leave Balances
-  const [balances, setBalances] = useState({
-    casual: { used: 0, total: 12 },
-    sick: { used: 0, total: 10 },
-    earned: { used: 0, total: 15 },
-    lop: { used: 0, total: 'Unlimited' }
-  });
-
-  // Raw State for Leave Requests
-  const [leaveRequests, setLeaveRequests] = useState([]);
-
-  // Form State for Applying Leave
-  const [newLeave, setNewLeave] = useState({
-    leaveType: 'Casual Leave',
+  const [signedIn, setSignedIn] = useState(false);
+  const [dashboard, setDashboard] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [form, setForm] = useState({
+    leaveType: 'CASUAL',
     startDate: '',
     endDate: '',
     reason: ''
   });
 
-  // Filters & Search
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('All');
-  const [hrComments, setHrComments] = useState({});
-
-  // Direct Preview Bypass Function (No Credentials Needed)
-  const handleDirectBypass = (roleToPreview) => {
-    setAuthRole(roleToPreview);
-    setLoggedInUser({
-      email: roleToPreview === 'hr' ? 'hr.admin@company.com' : 'employee@company.com',
-      role: roleToPreview === 'hr' ? 'HR Administrator' : 'Employee',
-      id: roleToPreview === 'hr' ? 'HR-001' : 'EMP-101'
-    });
-    setIsAuthenticated(true);
+  const refreshDashboard = async () => {
+    const data = await fetchDashboard(portal);
+    setDashboard(data);
+    return data;
   };
 
-  // Handle Standard Sign In Action
-  const handleSignIn = (e) => {
-    e.preventDefault();
+  const handleSignIn = async (event) => {
+    event.preventDefault();
+    setError('');
+    setNotice('');
+    setBusy(true);
 
-    const isEmployeeLogin =
-      authRole === 'employee' &&
-      email === 'employee.demo@company.com' &&
-      password === 'Employee123!';
+    try {
+      const result = await signInWithCognito(email, password);
 
-    const isManagerLogin =
-      authRole === 'manager' &&
-      email === 'manager.demo@company.com' &&
-      password === 'Manager123!';
-
-    const isHrLogin =
-      authRole === 'hr' &&
-      email === 'hr.demo@company.com' &&
-      password === 'HrAdmin123!';
-
-    if (!isEmployeeLogin && !isManagerLogin && !isHrLogin) {
-      alert('Those demo credentials do not match the selected portal.');
-      return;
-    }
-
-    setLoggedInUser({
-      email,
-      role: authRole === 'hr' ? 'HR Administrator' : authRole === 'manager' ? 'Manager' : 'Employee',
-      id: authRole === 'hr' ? 'HR-001' : authRole === 'manager' ? 'MGR-001' : 'EMP-101'
-    });
-
-    setIsAuthenticated(true);
-  };
-  // Handle Sign Out Action
-  const handleSignOut = () => {
-    setIsAuthenticated(false);
-    setEmail('');
-    setPassword('');
-    setLoggedInUser(null);
-  };
-
-  // Handle New Leave Submission
-  const handleApplyLeave = (e) => {
-    e.preventDefault();
-    if (!newLeave.startDate || !newLeave.endDate || !newLeave.reason) {
-      alert('Please fill in all required fields.');
-      return;
-    }
-
-    const start = new Date(newLeave.startDate);
-    const end = new Date(newLeave.endDate);
-    const diffTime = Math.abs(end - start);
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-
-    const createdRequest = {
-      id: `LR-${Date.now().toString().slice(-4)}`,
-      employeeEmail: loggedInUser.email,
-      leaveType: newLeave.leaveType,
-      startDate: newLeave.startDate,
-      endDate: newLeave.endDate,
-      duration: diffDays,
-      reason: newLeave.reason,
-      status: 'Pending',
-      appliedOn: new Date().toISOString().split('T')[0],
-      hrComment: ''
-    };
-
-    setLeaveRequests([createdRequest, ...leaveRequests]);
-    setNewLeave({ leaveType: 'Casual Leave', startDate: '', endDate: '', reason: '' });
-    setActiveTab('dashboard');
-    alert('Leave application submitted successfully!');
-  };
-
-  // Demo approval stages: manager approval first, then HR for requests over five days.
-  const handleStatusChange = (requestId, newStatus, reviewer = 'HR') => {
-    const request = leaveRequests.find((item) => item.id === requestId);
-    if (!request) return;
-
-    const defaultComment = newStatus === 'Pending HR'
-      ? 'Manager approved; awaiting HR review'
-      : `${newStatus === 'Approved' ? 'Approved' : 'Rejected'} by ${reviewer}`;
-    const comment = hrComments[requestId] || defaultComment;
-
-    if (newStatus === 'Approved' && request.status !== 'Approved') {
-      let typeKey = request.leaveType.toLowerCase().split(' ')[0];
-      if (request.leaveType.includes('Loss of Pay') || request.leaveType.includes('Unpaid')) {
-        typeKey = 'lop';
+      if (!result.signedIn) {
+        throw new Error(
+          `Cognito needs another sign-in step: ${
+            result.nextStep?.signInStep || 'follow the Cognito instructions'
+          }`
+        );
       }
-      if (balances[typeKey]) {
-        setBalances((previous) => ({
-          ...previous,
-          [typeKey]: {
-            ...previous[typeKey],
-            used: previous[typeKey].used + request.duration
-          }
-        }));
+
+      const data = await fetchDashboard(portal);
+      setDashboard(data);
+      setSignedIn(true);
+      setPassword('');
+    } catch (err) {
+      setError(err.message || 'Sign-in failed.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    setBusy(true);
+    try {
+      await signOutFromCognito();
+    } finally {
+      setSignedIn(false);
+      setDashboard(null);
+      setPassword('');
+      setError('');
+      setNotice('');
+      setBusy(false);
+    }
+  };
+
+  const handleSubmitLeave = async (event) => {
+    event.preventDefault();
+    setError('');
+    setNotice('');
+    setBusy(true);
+
+    try {
+      if (!form.startDate || !form.endDate || !form.reason.trim()) {
+        throw new Error('Enter the dates and reason for your leave request.');
       }
-    }
 
-    setLeaveRequests((previous) => previous.map((item) =>
-      item.id === requestId
-        ? { ...item, status: newStatus, hrComment: comment }
-        : item
-    ));
+      if (form.endDate < form.startDate) {
+        throw new Error('The end date must be on or after the start date.');
+      }
+
+      await submitLeaveRequest({
+        employee_id: dashboard?.employee?.employee_id,
+        leave_type: form.leaveType,
+        start_date: form.startDate,
+        end_date: form.endDate,
+        reason: form.reason.trim()
+      });
+
+      await refreshDashboard();
+      setForm({
+        leaveType: 'CASUAL',
+        startDate: '',
+        endDate: '',
+        reason: ''
+      });
+      setNotice('Your leave request was submitted.');
+    } catch (err) {
+      setError(err.message || 'Could not submit the leave request.');
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const handleManagerDecision = (requestId, decision) => {
-    const request = leaveRequests.find((item) => item.id === requestId);
-    if (!request || request.status !== 'Pending') return;
+  const handleDecision = async (requestId, action) => {
+    setError('');
+    setNotice('');
+    setBusy(true);
 
-    if (decision === 'Rejected') {
-      handleStatusChange(requestId, 'Rejected', 'Manager');
-    } else if (request.duration > 5) {
-      handleStatusChange(requestId, 'Pending HR', 'Manager');
-    } else {
-      handleStatusChange(requestId, 'Approved', 'Manager');
+    try {
+      await approveLeaveRequest(requestId, action);
+      await refreshDashboard();
+      setNotice(action === 'APPROVE' ? 'Request approved.' : 'Request rejected.');
+    } catch (err) {
+      setError(err.message || 'Could not update this request.');
+    } finally {
+      setBusy(false);
     }
   };
-  // CSV Export Functionality
-  const exportToCSV = () => {
-    if (leaveRequests.length === 0) {
-      alert('No leave records to export.');
+
+  const requests = dashboard?.leave_requests || [];
+  const balances = dashboard?.leave_balances || [];
+  const balanceFor = (type) =>
+    balances.find((item) => String(item.balance_key || '').startsWith(`${type}#`));
+
+  const absenceRows = dashboard?.team_absences || [];
+  const memberSource =
+    portal === 'manager'
+      ? dashboard?.team_members || []
+      : absenceRows;
+
+  const seenMembers = new Set();
+  const teamMembers = memberSource
+    .filter((person) => {
+      const id = person.employee_id;
+      if (!id || seenMembers.has(id)) return false;
+      seenMembers.add(id);
+      return portal !== 'manager' || id !== dashboard?.manager?.employee_id;
+    })
+    .map((person) => ({
+      email: person.employee_id,
+      name: person.employee_name || person.employee_id
+    }));
+
+  const calendarEvents = absenceRows
+    .filter((item) => item.date)
+    .map((item) => ({
+      employeeEmail: item.employee_id,
+      leaveType: leaveLabels[item.leave_type] || item.leave_type,
+      startDate: item.date,
+      endDate: item.date,
+      status: 'Approved'
+    }));
+
+  const downloadCsv = () => {
+    if (!requests.length) {
+      setNotice('There are no leave requests to export.');
       return;
     }
 
-    const headers = ['Request ID', 'User Email', 'Leave Type', 'Start Date', 'End Date', 'Duration (Days)', 'Status', 'Reason', 'HR Comment'];
-    const rows = leaveRequests.map(req => [
-      req.id,
-      req.employeeEmail,
-      `"${req.leaveType}"`,
-      req.startDate,
-      req.endDate,
-      req.duration,
-      req.status,
-      `"${req.reason.replace(/"/g, '""')}"`,
-      `"${(req.hrComment || '').replace(/"/g, '""')}"`
+    const columns = [
+      'Request ID',
+      'Employee',
+      'Email',
+      'Leave Type',
+      'Start Date',
+      'End Date',
+      'Days',
+      'Status',
+      'Reason'
+    ];
+
+    const rows = requests.map((request) => [
+      request.request_id,
+      request.employee_name,
+      request.employee_email,
+      leaveLabels[request.leave_type] || request.leave_type,
+      request.start_date,
+      request.end_date,
+      request.total_days,
+      statusLabel(request.status),
+      request.reason
     ]);
 
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
+    const quote = (value) =>
+      `"${String(value ?? '').replaceAll('"', '""')}"`;
+
+    const csv = [columns, ...rows]
+      .map((row) => row.map(quote).join(','))
+      .join('\r\n');
+
     const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `Leave_Report_${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
+    link.href = URL.createObjectURL(
+      new Blob([csv], { type: 'text/csv;charset=utf-8' })
+    );
+    link.download = 'leave-report.csv';
     link.click();
-    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
   };
 
-  // Filtered Requests based on user and search
-  const filteredRequests = leaveRequests.filter((req) => {
-    const matchesSearch = req.leaveType.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      req.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      req.employeeEmail.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'All' || req.status === statusFilter;
-    const matchesRoleScope = authRole !== 'employee' || req.employeeEmail === loggedInUser?.email;
-    return matchesSearch && matchesStatus && matchesRoleScope;
-  });
-
-  // These arrays are intentionally empty until the frontend is connected to the employee and leave APIs.
-  const calendarTeamMembers = [];
-  const calendarEvents = [];
-  // ================= 1. SIGN IN SCREEN WITH PREVIEW BYPASS =================
-  if (!isAuthenticated) {
-    const selectedPortalStyle = {
-      border: '2px solid #147d6b',
-      background: '#e8f4ef',
-      color: '#173b34'
-    };
-
-    const portalStyle = {
-      border: '1px solid #d8e2dc',
-      background: '#ffffff',
-      color: '#33433d'
-    };
-
+  if (!signedIn) {
     return (
-      <div style={{
-        minHeight: '100vh',
-        background: '#f4f1e8',
-        color: '#20332d',
-        fontFamily: 'Segoe UI, system-ui, sans-serif',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: '28px',
-        boxSizing: 'border-box'
-      }}>
-        <div style={{ width: '100%', maxWidth: '480px' }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            marginBottom: '22px',
-            fontSize: '23px',
-            fontWeight: '800',
-            letterSpacing: '-0.5px'
-          }}>
-            <Calendar size={27} color="#147d6b" />
-            <span>Smart Leave Engine</span>
+      <main style={styles.page}>
+        <section style={styles.loginWrap}>
+          <div style={styles.brand}>
+            <CalendarDays size={30} color="#147d6b" />
+            <h1 style={styles.title}>Smart Leave Engine</h1>
+          </div>
+          <div style={styles.loginCard}>
+          <div style={styles.eyebrow}>PORTAL LOGIN</div>
+          <h2 style={styles.loginHeading}>Sign in</h2>
+          <p style={styles.subtitle}>Choose your portal and sign in to continue.</p>
+
+          <div style={styles.portals}>
+            {[
+              ['employee', 'Employee', 'Apply and view leave', UserRound],
+              ['manager', 'Manager', 'Review team requests', UsersRound],
+              ['hr', 'HR Administrator', 'Review leave requests', Building2]
+            ].map(([value, label, description, Icon]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setPortal(value)}
+                style={{
+                  ...styles.portalButton,
+                  ...(portal === value ? styles.portalSelected : {})
+                }}
+              >
+                <Icon size={19} />
+                <strong style={{ display: 'block', marginTop: '8px' }}>{label}</strong>
+                <span style={{ display: 'block', marginTop: '3px', fontSize: '12px' }}>{description}</span>
+              </button>
+            ))}
           </div>
 
-          <main style={{
-            background: '#ffffff',
-            border: '1px solid #e3e7df',
-            borderRadius: '20px',
-            padding: '30px',
-            boxShadow: '0 18px 50px rgba(32, 51, 45, 0.10)'
-          }}>
-            <div style={{
-              color: '#147d6b',
-              fontWeight: '700',
-              fontSize: '12px',
-              letterSpacing: '1.5px',
-              marginBottom: '9px'
-            }}>
-              PORTAL LOGIN
-            </div>
+          <form onSubmit={handleSignIn}>
+            <label style={styles.label}>Work email</label>
+            <input
+              style={styles.input}
+              type="email"
+              autoComplete="username"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              required
+            />
 
-            <h1 style={{ fontSize: '27px', margin: '0 0 8px', color: '#20332d' }}>
-              Sign in
-            </h1>
-            <p style={{ color: '#68766f', margin: '0 0 22px' }}>
-              Choose your portal and sign in to continue.
-            </p>
+            <label style={styles.label}>Password</label>
+            <input
+              style={styles.input}
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              required
+            />
 
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-              gap: '10px',
-              marginBottom: '22px'
-            }}>
-              <button
-                type="button"
-                onClick={() => setAuthRole('employee')}
-                style={{
-                  ...(authRole === 'employee' ? selectedPortalStyle : portalStyle),
-                  borderRadius: '12px',
-                  padding: '14px 10px',
-                  cursor: 'pointer',
-                  textAlign: 'left'
-                }}
-              >
-                <User size={19} />
-                <div style={{ fontWeight: '700', marginTop: '8px' }}>Employee</div>
-                <div style={{ fontSize: '12px', marginTop: '3px' }}>Apply and view leave</div>
-              </button>
+            {error && <p style={styles.error}>{error}</p>}
 
-              <button
-                type="button"
-                onClick={() => setAuthRole('manager')}
-                style={{
-                  ...(authRole === 'manager' ? selectedPortalStyle : portalStyle),
-                  borderRadius: '12px',
-                  padding: '14px 10px',
-                  cursor: 'pointer',
-                  textAlign: 'left'
-                }}
-              >
-                <Users size={19} />
-                <div style={{ fontWeight: '700', marginTop: '8px' }}>Manager</div>
-                <div style={{ fontSize: '12px', marginTop: '3px' }}>Review team requests</div>
-              </button>
-              <button
-                type="button"
-                onClick={() => setAuthRole('hr')}
-                style={{
-                  ...(authRole === 'hr' ? selectedPortalStyle : portalStyle),
-                  borderRadius: '12px',
-                  padding: '14px 10px',
-                  cursor: 'pointer',
-                  textAlign: 'left'
-                }}
-              >
-                <Building size={19} />
-                <div style={{ fontWeight: '700', marginTop: '8px' }}>HR Administrator</div>
-                <div style={{ fontSize: '12px', marginTop: '3px' }}>Review leave requests</div>
-              </button>
-            </div>
-
-            <form onSubmit={handleSignIn}>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '6px' }}>
-                Work email
-              </label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@company.com"
-                required
-                style={{
-                  width: '100%',
-                  boxSizing: 'border-box',
-                  padding: '12px',
-                  border: '1px solid #d7dfd9',
-                  borderRadius: '10px',
-                  marginBottom: '16px',
-                  fontSize: '14px'
-                }}
-              />
-
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '6px' }}>
-                Password
-              </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter your password"
-                required
-                style={{
-                  width: '100%',
-                  boxSizing: 'border-box',
-                  padding: '12px',
-                  border: '1px solid #d7dfd9',
-                  borderRadius: '10px',
-                  marginBottom: '18px',
-                  fontSize: '14px'
-                }}
-              />
-
-              <button
-                type="submit"
-                style={{
-                  width: '100%',
-                  padding: '13px',
-                  background: '#147d6b',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '10px',
-                  fontSize: '15px',
-                  fontWeight: '700',
-                  cursor: 'pointer'
-                }}
-              >
-                Sign in
-              </button>
-            </form></main>
-        </div>
-      </div>
+            <button style={styles.primaryButton} disabled={busy}>
+              {busy ? 'Signing in…' : 'Sign in'}
+            </button>
+          </form>
+          </div>
+        </section>
+      </main>
     );
   }
-  // ================= 2. MAIN DASHBOARD =================
+
+  const profile = dashboard?.employee || dashboard?.manager;
+  const heading =
+    portal === 'hr' ? 'HR / Admin Portal' :
+    portal === 'manager' ? 'Manager Portal' :
+    'Employee Portal';
+
   return (
-    <div style={{ fontFamily: 'Segoe UI, Tahoma, Geneva, Verdana, sans-serif', backgroundColor: '#f8fafc', minHeight: '100vh', color: '#1e293b' }}>
-      
-      {/* Header */}
-      <header style={{ backgroundColor: '#065f46', color: '#ffffff', padding: '16px 32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <Calendar style={{ color: '#6ee7b7', width: '26px', height: '26px' }} />
-          <div>
-            <h1 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold' }}>Smart Leave Engine</h1>
-            <p style={{ margin: 0, fontSize: '12px', color: '#a7f3d0' }}>{loggedInUser.role} Portal</p>
+    <main style={styles.page}>
+      <section style={styles.container}>
+        <header style={styles.dashboardHeader}>
+          <div style={styles.dashboardBrand}>
+            <CalendarDays size={28} color="#6ee7b7" />
+            <div>
+              <h1 style={styles.dashboardTitle}>Smart Leave Engine</h1>
+              <p style={styles.dashboardSubtitle}>{heading}</p>
+            </div>
           </div>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <div style={{ textAlign: 'right' }}>
-            <span style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#ffffff' }}>{loggedInUser.email}</span>
-            <span style={{ fontSize: '11px', color: '#6ee7b7', fontWeight: '600' }}>{loggedInUser.role}</span>
+          <div style={styles.userActions}>
+            <div style={styles.userIdentity}>
+              <strong>{profile?.employee_email || email}</strong>
+              <span>{heading}</span>
+            </div>
+            <button
+              type="button"
+              onClick={handleSignOut}
+              style={styles.signOutButton}
+              disabled={busy}
+            >
+              <LogOut size={15} /> Sign out
+            </button>
           </div>
-          <button 
-            onClick={handleSignOut}
-            style={{ padding: '8px 14px', backgroundColor: '#047857', color: '#ffffff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}
-          >
-            <LogOut style={{ width: '14px', height: '14px' }} />
-            Sign Out
-          </button>
-        </div>
-      </header>
+        </header>
 
-      <div style={{ maxWidth: '1200px', margin: '32px auto', padding: '0 16px' }}>
+        {error && <p style={styles.error}>{error}</p>}
+        {notice && <p style={styles.notice}>{notice}</p>}
 
-        {/* ================= EMPLOYEE PORTAL ================= */}
-        {authRole === 'employee' && (
-          <div>
-            <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '24px', marginBottom: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #e2e8f0' }}>
-              <div>
-                <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 'bold', color: '#0f172a' }}>Employee Portal</h2>
-                <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '14px' }}>Logged in as {loggedInUser.email}</p>
+        {portal === 'employee' && (
+          <>
+            <section style={styles.card}>
+              <h2>My leave balances</h2>
+              <div style={styles.balanceGrid}>
+                {['SICK', 'CASUAL', 'EARNED'].map((type) => {
+                  const item = balanceFor(type);
+                  return (
+                    <article key={type} style={styles.balanceCard}>
+                      <div style={styles.balanceTitle}><Clock3 size={17} color="#147d6b" /><strong>{leaveLabels[type]}</strong></div>
+                      <div style={styles.balanceNumber}>
+                        {asNumber(item?.available)} days
+                      </div>
+                      <small>
+                        Used: {asNumber(item?.used)} / Allocated:{' '}
+                        {asNumber(item?.allocated)}
+                      </small>
+                    </article>
+                  );
+                })}
+                <article style={styles.balanceCard}>
+                  <div style={styles.balanceTitle}><Clock3 size={17} color="#b74343" /><strong>{leaveLabels.UNPAID}</strong></div>
+                  <div style={styles.balanceNumber}>As per policy</div>
+                  <small>
+                    Used: {asNumber(dashboard?.lop_days_taken)} day(s)
+                  </small>
+                </article>
               </div>
-              <button 
-                onClick={() => setActiveTab(activeTab === 'apply' ? 'dashboard' : 'apply')}
-                style={{ backgroundColor: '#047857', color: '#ffffff', border: 'none', padding: '10px 18px', borderRadius: '8px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px' }}
-              >
-                <PlusCircle style={{ width: '16px', height: '16px' }} />
-                {activeTab === 'apply' ? 'View Dashboard' : 'Apply for Leave'}
-              </button>
-            </div>
+            </section>
 
-            {/* Leave Balance Cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '32px' }}>
-              {Object.entries(balances).map(([type, bal]) => {
-                const title = type === 'lop' ? 'Loss of Pay (LOP)' : type.charAt(0).toUpperCase() + type.slice(1) + ' Leave';
-                const available = typeof bal.total === 'number' ? bal.total - bal.used : 'Unlimited';
-                const cardColor = type === 'lop' ? '#e11d48' : '#047857';
-                return (
-                  <div key={type} style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0', borderLeft: `4px solid ${cardColor}` }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                      <span style={{ fontWeight: '600', color: '#475569', fontSize: '13px' }}>{title}</span>
-                      <Clock style={{ width: '18px', height: '18px', color: cardColor }} />
-                    </div>
-                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#0f172a' }}>
-                      {type === 'lop' ? `${bal.used} days taken` : `${available} `}
-                      {type !== 'lop' && <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 'normal' }}>/ {bal.total} days</span>}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            <section style={styles.card}>
+              <h2>Apply for leave</h2>
+              <form onSubmit={handleSubmitLeave}>
+                <label style={styles.label}>Leave type</label>
+                <select
+                  style={styles.input}
+                  value={form.leaveType}
+                  onChange={(event) =>
+                    setForm({ ...form, leaveType: event.target.value })
+                  }
+                >
+                  <option value="SICK">Sick Leave</option>
+                  <option value="CASUAL">Casual Leave</option>
+                  <option value="EARNED">Earned Leave</option>
+                  <option value="UNPAID">Loss of Pay</option>
+                </select>
 
-            {/* Apply Leave Form */}
-            {activeTab === 'apply' && (
-              <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '28px', marginBottom: '32px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0' }}>
-                <h3 style={{ margin: '0 0 20px 0', fontSize: '16px', fontWeight: 'bold', color: '#0f172a' }}>Submit Leave Request</h3>
-                <form onSubmit={handleApplyLeave} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-                  <div style={{ gridColumn: 'span 2' }}>
-                    <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#334155', fontSize: '13px' }}>Leave Type</label>
-                    <select 
-                      value={newLeave.leaveType}
-                      onChange={(e) => setNewLeave({ ...newLeave, leaveType: e.target.value })}
-                      style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '14px' }}
-                    >
-                      <option value="Casual Leave">Casual Leave</option>
-                      <option value="Sick Leave">Sick Leave</option>
-                      <option value="Earned Leave">Earned Leave</option>
-                      <option value="Loss of Pay (LOP) / Unpaid Leave">Loss of Pay (LOP) / Unpaid Leave</option>
-                    </select>
-                  </div>
-
+                <div style={styles.dateGrid}>
                   <div>
-                    <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#334155', fontSize: '13px' }}>Start Date</label>
-                    <input 
-                      type="date" 
-                      value={newLeave.startDate}
-                      onChange={(e) => setNewLeave({ ...newLeave, startDate: e.target.value })}
-                      style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '14px' }}
+                    <label style={styles.label}>Start date</label>
+                    <input
+                      style={styles.input}
+                      type="date"
+                      value={form.startDate}
+                      onChange={(event) =>
+                        setForm({ ...form, startDate: event.target.value })
+                      }
                       required
                     />
                   </div>
-
                   <div>
-                    <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#334155', fontSize: '13px' }}>End Date</label>
-                    <input 
-                      type="date" 
-                      value={newLeave.endDate}
-                      onChange={(e) => setNewLeave({ ...newLeave, endDate: e.target.value })}
-                      style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '14px' }}
+                    <label style={styles.label}>End date</label>
+                    <input
+                      style={styles.input}
+                      type="date"
+                      value={form.endDate}
+                      onChange={(event) =>
+                        setForm({ ...form, endDate: event.target.value })
+                      }
                       required
                     />
                   </div>
+                </div>
 
-                  <div style={{ gridColumn: 'span 2' }}>
-                    <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#334155', fontSize: '13px' }}>Reason for Leave</label>
-                    <textarea 
-                      rows="3"
-                      value={newLeave.reason}
-                      onChange={(e) => setNewLeave({ ...newLeave, reason: e.target.value })}
-                      placeholder="Enter reason..."
-                      style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '14px' }}
-                      required
-                    />
-                  </div>
-
-                  <div style={{ gridColumn: 'span 2', display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-                    <button 
-                      type="button" 
-                      onClick={() => setActiveTab('dashboard')}
-                      style={{ padding: '10px 18px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}
-                    >
-                      Cancel
-                    </button>
-                    <button 
-                      type="submit" 
-                      style={{ padding: '10px 18px', borderRadius: '6px', border: 'none', backgroundColor: '#047857', color: '#ffffff', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}
-                    >
-                      Submit Application
-                    </button>
-                  </div>
-                </form>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ================= HR PORTAL ================= */}
-        {authRole === 'hr' && (
-          <div>
-            <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '24px', marginBottom: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #e2e8f0' }}>
-              <div>
-                <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 'bold', color: '#0f172a' }}>HR / Admin Portal</h2>
-                <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '14px' }}>Review applications, approve/reject paid/unpaid requests, and export reports.</p>
-              </div>
-              <button 
-                onClick={exportToCSV}
-                style={{ backgroundColor: '#16a34a', color: '#ffffff', border: 'none', padding: '10px 18px', borderRadius: '8px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px' }}
-              >
-                <FileSpreadsheet style={{ width: '16px', height: '16px' }} />
-                Export CSV Report
-              </button>
-            </div>
-            <TeamCalendar teamMembers={calendarTeamMembers} leaveEvents={calendarEvents} />
-          </div>
-        )}
-
-        {/* ================= MANAGER PORTAL ================= */}
-        {authRole === 'manager' && (
-          <div>
-            <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '24px', marginBottom: '24px', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-              <div>
-                <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 'bold', color: '#20332d' }}>Manager Portal</h2>
-                <p style={{ margin: '5px 0 0', color: '#64748b', fontSize: '14px' }}>Review team leave requests and see approved absences by day.</p>
-              </div>
-              <div style={{ padding: '10px 14px', borderRadius: '10px', background: '#e8f4ef', color: '#147d6b', fontWeight: '700' }}>
-                {leaveRequests.filter((request) => request.status === 'Pending').length} pending approval(s)
-              </div>
-            </div>
-
-            <TeamCalendar teamMembers={calendarTeamMembers} leaveEvents={calendarEvents} />
-            <div style={{ margin: '0 0 22px', color: '#64748b', fontSize: '13px' }}>
-              Requests longer than five days move to HR after manager approval.
-            </div>
-          </div>
-        )}
-        {/* ================= SHARED LEAVE REQUESTS TABLE ================= */}
-        <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
-            <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 'bold', color: '#0f172a' }}>
-              {authRole === 'hr' ? 'All User Leave Applications' : authRole === 'manager' ? 'Team Leave Requests' : 'My Leave Applications'}
-            </h3>
-
-            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-              <div style={{ position: 'relative' }}>
-                <Search style={{ position: 'absolute', left: '10px', top: '10px', width: '15px', height: '15px', color: '#94a3b8' }} />
-                <input 
-                  type="text" 
-                  placeholder="Search email, ID, or type..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  style={{ padding: '8px 12px 8px 32px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                <label style={styles.label}>Reason</label>
+                <textarea
+                  style={{ ...styles.input, minHeight: '90px' }}
+                  value={form.reason}
+                  onChange={(event) =>
+                    setForm({ ...form, reason: event.target.value })
+                  }
+                  required
                 />
+
+                <button style={styles.primaryButton} disabled={busy}>
+                  {busy ? 'Submitting…' : 'Submit leave request'}
+                </button>
+              </form>
+            </section>
+          </>
+        )}
+
+        {(portal === 'manager' || portal === 'hr') && (
+          <>
+            <section style={styles.card}>
+              <div style={styles.sectionHeader}>
+                <div>
+                  <h2>Team absence calendar</h2>
+                  <p style={styles.subtitle}>
+                    Approved absences returned by the backend
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={downloadCsv}
+                  style={styles.secondaryButton}
+                >
+                  <FileSpreadsheet size={16} style={{ verticalAlign: 'middle', marginRight: '7px' }} />Download CSV report
+                </button>
               </div>
+              <TeamCalendar
+                teamMembers={teamMembers}
+                leaveEvents={calendarEvents}
+              />
+            </section>
+          </>
+        )}
 
-              <select 
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px' }}
-              >
-                <option value="All">All Statuses</option>
-                <option value="Pending">Pending</option>
-                <option value="Pending HR">Pending HR Review</option>
-                <option value="Approved">Approved</option>
-                <option value="Rejected">Rejected</option>
-              </select>
-            </div>
-          </div>
+        <section style={styles.card}>
+          <h2>
+            {portal === 'employee'
+              ? 'My leave history'
+              : portal === 'manager'
+                ? 'Team leave requests'
+                : 'All user leave applications'}
+          </h2>
 
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
-              <thead>
-                <tr style={{ backgroundColor: '#f8fafc', borderBottom: '2px solid #e2e8f0', color: '#475569' }}>
-                  <th style={{ padding: '12px' }}>Request ID</th>
-                  <th style={{ padding: '12px' }}>User Email</th>
-                  <th style={{ padding: '12px' }}>Leave Type</th>
-                  <th style={{ padding: '12px' }}>Dates</th>
-                  <th style={{ padding: '12px' }}>Duration</th>
-                  <th style={{ padding: '12px' }}>Reason</th>
-                  <th style={{ padding: '12px' }}>Status</th>
-                  {authRole === 'hr' && <th style={{ padding: '12px' }}>HR Actions</th>}
-                  {authRole === 'manager' && <th style={{ padding: '12px' }}>Manager Actions</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {filteredRequests.length === 0 ? (
+          {requests.length === 0 ? (
+            <p style={styles.subtitle}>No leave requests were returned.</p>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={styles.table}>
+                <thead>
                   <tr>
-                    <td colSpan={authRole === 'hr' || authRole === 'manager' ? 8 : 7} style={{ textAlign: 'center', padding: '32px', color: '#94a3b8' }}>
-                      {authRole === 'manager' ? 'No team requests yet. Employee requests will appear here.' : 'No leave applications found. Apply for leave to view records here.'}
-                    </td>
+                    <th>Request ID</th>
+                    {portal !== 'employee' && <th>Employee</th>}
+                    <th>Leave type</th>
+                    <th>Dates</th>
+                    <th>Days</th>
+                    <th>Status</th>
+                    <th>Reason</th>
+                    {portal !== 'employee' && <th>Actions</th>}
                   </tr>
-                ) : (
-                  filteredRequests.map((req) => (
-                    <tr key={req.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                      <td style={{ padding: '12px', fontWeight: '600', color: '#334155' }}>{req.id}</td>
-                      <td style={{ padding: '12px', fontWeight: '500' }}>{req.employeeEmail}</td>
-                      <td style={{ padding: '12px' }}>
-                        <span style={{ fontWeight: req.leaveType.includes('LOP') ? '600' : 'normal', color: req.leaveType.includes('LOP') ? '#e11d48' : 'inherit' }}>
-                          {req.leaveType}
-                        </span>
-                      </td>
-                      <td style={{ padding: '12px', color: '#64748b' }}>{req.startDate} to {req.endDate}</td>
-                      <td style={{ padding: '12px', fontWeight: '600' }}>{req.duration} day(s)</td>
-                      <td style={{ padding: '12px', color: '#475569', maxWidth: '200px' }}>{req.reason}</td>
-                      <td style={{ padding: '12px' }}>
-                        <span style={{ 
-                          padding: '4px 10px', borderRadius: '12px', fontSize: '12px', fontWeight: '600',
-                          backgroundColor: req.status === 'Approved' ? '#dcfce7' : req.status === 'Rejected' ? '#fee2e2' : '#fef3c7',
-                          color: req.status === 'Approved' ? '#166534' : req.status === 'Rejected' ? '#991b1b' : '#92400e'
-                        }}>
-                          {req.status}
-                        </span>
-                      </td>
+                </thead>
+                <tbody>
+                  {requests.map((request) => {
+                    const canAct =
+                      (portal === 'manager' && request.status === 'PENDING') ||
+                      (portal === 'hr' &&
+                        request.status === 'PENDING_HR_REVIEW');
 
-                      {/* HR Actions */}
-                      {authRole === 'hr' && (
-                        <td style={{ padding: '12px' }}>
-                          {req.status === 'Pending HR' ? (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                              <input 
-                                type="text"
-                                placeholder="Add remark..."
-                                value={hrComments[req.id] || ''}
-                                onChange={(e) => setHrComments({ ...hrComments, [req.id]: e.target.value })}
-                                style={{ padding: '4px 8px', fontSize: '12px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
-                              />
-                              <div style={{ display: 'flex', gap: '6px' }}>
-                                <button 
-                                  onClick={() => handleStatusChange(req.id, 'Approved')}
-                                  style={{ padding: '4px 8px', borderRadius: '4px', border: 'none', backgroundColor: '#16a34a', color: '#ffffff', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}
+                    return (
+                      <tr key={request.request_id}>
+                        <td>{request.request_id}</td>
+                        {portal !== 'employee' && (
+                          <td>
+                            {request.employee_name || request.employee_email}
+                          </td>
+                        )}
+                        <td>
+                          {leaveLabels[request.leave_type] ||
+                            request.leave_type}
+                        </td>
+                        <td>
+                          {request.start_date} to {request.end_date}
+                        </td>
+                        <td>{request.total_days}</td>
+                        <td><span style={{ ...styles.statusBadge, ...(request.status === 'APPROVED' ? styles.statusApproved : request.status === 'REJECTED' ? styles.statusRejected : styles.statusPending) }}>{statusLabel(request.status)}</span></td>
+                        <td>{request.reason}</td>
+                        {portal !== 'employee' && (
+                          <td>
+                            {canAct ? (
+                              <div style={styles.actionButtons}>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleDecision(
+                                      request.request_id,
+                                      'APPROVE'
+                                    )
+                                  }
+                                  disabled={busy}
                                 >
                                   Approve
                                 </button>
-                                <button 
-                                  onClick={() => handleStatusChange(req.id, 'Rejected')}
-                                  style={{ padding: '4px 8px', borderRadius: '4px', border: 'none', backgroundColor: '#dc2626', color: '#ffffff', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleDecision(
+                                      request.request_id,
+                                      'REJECT'
+                                    )
+                                  }
+                                  disabled={busy}
                                 >
                                   Reject
                                 </button>
                               </div>
-                            </div>
-                          ) : (
-                            <span style={{ fontSize: '12px', color: '#94a3b8' }}>{req.status === 'Pending' ? 'Awaiting manager approval' : req.hrComment || 'Recorded'}</span>
-                          )}
-                        </td>
-                      )}
-                      {authRole === 'manager' && (
-                        <td style={{ padding: '12px' }}>
-                          {req.status === 'Pending' ? (
-                            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                              <button
-                                onClick={() => handleManagerDecision(req.id, 'Approved')}
-                                style={{ padding: '6px 9px', borderRadius: '6px', border: 'none', backgroundColor: '#147d6b', color: '#ffffff', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}
-                              >
-                                Approve
-                              </button>
-                              <button
-                                onClick={() => handleManagerDecision(req.id, 'Rejected')}
-                                style={{ padding: '6px 9px', borderRadius: '6px', border: 'none', backgroundColor: '#b74343', color: '#ffffff', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}
-                              >
-                                Reject
-                              </button>
-                            </div>
-                          ) : (
-                            <span style={{ fontSize: '12px', color: '#64748b' }}>{req.status === 'Pending' ? 'Awaiting manager approval' : req.hrComment || 'Recorded'}</span>
-                          )}
-                        </td>
-                      )}
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-      </div>
-    </div>
+                            ) : (
+                              '—'
+                            )}
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      </section>
+    </main>
   );
 }
 
-
-
-
-
+const styles = {
+  page: {
+    minHeight: '100vh',
+    background: '#f4f1e8',
+    color: '#20332d',
+    fontFamily: 'Segoe UI, system-ui, sans-serif',
+    padding: '32px 16px'
+  },
+  container: { maxWidth: '1200px', margin: '0 auto' },
+  loginWrap: { width: '100%', maxWidth: '560px', margin: '0 auto' },
+  brand: { display: 'flex', alignItems: 'center', gap: '11px', margin: '0 0 18px 8px' },
+  eyebrow: { color: '#147d6b', fontWeight: '700', fontSize: '12px', letterSpacing: '1.5px', marginBottom: '8px' },
+  loginHeading: { margin: '0 0 6px', fontSize: '28px', color: '#20332d' },
+  loginCard: {
+    maxWidth: '560px',
+    margin: '40px auto',
+    padding: '32px',
+    borderRadius: '18px',
+    background: '#fff',
+    boxShadow: '0 12px 36px rgba(32, 51, 45, 0.1)'
+  },
+  header: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: '20px',
+    marginBottom: '24px'
+  },
+  dashboardHeader: { background: '#065f46', color: '#fff', borderRadius: '16px', padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', flexWrap: 'wrap', marginBottom: '24px', boxShadow: '0 8px 20px rgba(6,95,70,.14)' },
+  dashboardBrand: { display: 'flex', alignItems: 'center', gap: '12px' },
+  dashboardTitle: { margin: 0, fontSize: '21px', fontWeight: '800' },
+  dashboardSubtitle: { margin: '3px 0 0', color: '#a7f3d0', fontSize: '13px' },
+  userActions: { display: 'flex', alignItems: 'center', gap: '16px' },
+  userIdentity: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '3px', fontSize: '12px' },
+  signOutButton: { border: '1px solid #6ee7b7', borderRadius: '8px', background: '#047857', color: '#fff', padding: '9px 13px', display: 'flex', alignItems: 'center', gap: '7px', cursor: 'pointer', fontWeight: '700' },
+  title: { margin: 0, fontSize: '28px' },
+  subtitle: { color: '#64748b', marginTop: '8px' },
+  portals: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(3, 1fr)',
+    gap: '10px',
+    margin: '24px 0'
+  },
+  portalButton: {
+    border: '1px solid #d8e2dc',
+    borderRadius: '10px',
+    background: '#fff',
+    padding: '14px 8px',
+    cursor: 'pointer',
+    color: '#20332d',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    minHeight: '98px',
+    textAlign: 'left'
+  },
+  portalSelected: {
+    border: '2px solid #147d6b',
+    background: '#e8f4ef',
+    fontWeight: '700'
+  },
+  label: { display: 'block', margin: '14px 0 6px', fontWeight: '600' },
+  input: {
+    boxSizing: 'border-box',
+    width: '100%',
+    border: '1px solid #cbd5d1',
+    borderRadius: '9px',
+    padding: '12px',
+    font: 'inherit'
+  },
+  primaryButton: {
+    width: '100%',
+    border: 0,
+    borderRadius: '9px',
+    background: '#147d6b',
+    color: '#fff',
+    padding: '13px',
+    marginTop: '18px',
+    fontWeight: '700',
+    cursor: 'pointer'
+  },
+  secondaryButton: {
+    border: '1px solid #147d6b',
+    borderRadius: '9px',
+    background: '#fff',
+    color: '#147d6b',
+    padding: '10px 14px',
+    fontWeight: '600',
+    cursor: 'pointer'
+  },
+  card: {
+    background: '#fff',
+    border: '1px solid #e2e8f0',
+    borderRadius: '14px',
+    padding: '22px',
+    marginBottom: '20px'
+  },
+  sectionHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: '12px',
+    flexWrap: 'wrap'
+  },
+  balanceGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
+    gap: '12px'
+  },
+  balanceCard: {
+    border: '1px solid #e2e8f0',
+    borderRadius: '10px',
+    padding: '16px'
+  },
+  balanceTitle: { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' },
+  balanceNumber: { fontSize: '24px', fontWeight: '700', margin: '10px 0' },
+  dateGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+    gap: '12px'
+  },
+  table: {
+    width: '100%',
+    borderCollapse: 'collapse',
+    textAlign: 'left'
+  },
+  actionButtons: { display: 'flex', gap: '6px' },
+  statusBadge: { display: 'inline-block', padding: '4px 10px', borderRadius: '999px', fontWeight: '700', fontSize: '12px' },
+  statusApproved: { background: '#dcfce7', color: '#166534' },
+  statusRejected: { background: '#fee2e2', color: '#991b1b' },
+  statusPending: { background: '#fef3c7', color: '#92400e' },
+  error: {
+    padding: '12px',
+    borderRadius: '8px',
+    background: '#fee2e2',
+    color: '#991b1b'
+  },
+  notice: {
+    padding: '12px',
+    borderRadius: '8px',
+    background: '#dcfce7',
+    color: '#166534'
+  }
+};

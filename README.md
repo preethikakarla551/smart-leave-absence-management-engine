@@ -69,7 +69,7 @@ flowchart LR
 
 ## Workflow outcome screenshots
 
-These AWS Step Functions execution graphs document three workflow outcomes from the project: manager approval followed by HR approval, manager approval, and manager rejection.
+These AWS Step Functions execution graphs document four workflow outcomes from the project: manager approval followed by HR approval, manager approval, manager rejection, and HR-stage rejection.
 
 ### Manager approval followed by HR approval
 
@@ -82,6 +82,10 @@ These AWS Step Functions execution graphs document three workflow outcomes from 
 ### Manager rejection
 
 <img src="docs/screenshots/workflow-manager-rejection.png" alt="Step Functions execution with manager rejection completed" width="100%" />
+
+### HR-stage rejection
+
+<img src="docs/screenshots/workflow-hr-rejection.png" alt="Step Functions execution showing the HR-stage rejection path and final LeaveRejected state" width="100%" />
 
 ## Notification screenshots
 
@@ -111,7 +115,7 @@ The employee submission and post-approval employee confirmation email still need
 - Cognito sign-in and the employee, manager, and HR API dashboard routes are integrated in the frontend.
 - Leave submission and approval actions call authenticated API Gateway routes.
 - The weekly EventBridge Lambda has successfully run and sent a balance-summary email.
-- The workflow screenshots include completed manager approval, manager-plus-HR approval, and rejection paths. If an approval returns HTTP 409, inspect the employee balance record: `available` and `used` must be DynamoDB Numbers, not Strings.
+- The workflow screenshots include completed manager approval, manager-plus-HR approval, manager rejection, and HR-stage rejection paths. If an approval returns HTTP 409, inspect the employee balance record: `available` and `used` must be DynamoDB Numbers, not Strings.
 - The backend and SAM infrastructure are maintained separately from this frontend repository by the infrastructure owner.
 
 This is a team project in active integration. Confirm the deployed routes, table names, IAM policies, and workflow definition against the team’s current SAM stack before using the portal with real employees.

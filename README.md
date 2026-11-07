@@ -67,6 +67,12 @@ flowchart LR
   W --> SES
 ```
 
+## DynamoDB schema overview
+
+![Smart Leave Engine DynamoDB schema overview](docs/schema/dynamodb-schema-overview.png)
+
+See the [DynamoDB schema documentation](docs/dynamodb-schema.md) for key attributes, table details, and quota rules.
+
 ## Workflow outcome screenshots
 
 These AWS Step Functions execution graphs document four workflow outcomes from the project: manager approval followed by HR approval, manager approval, manager rejection, and HR-stage rejection.

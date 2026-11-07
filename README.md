@@ -134,7 +134,8 @@ smart-leave-absence-management-engine/
 ├── cloudfront-s3/       # S3/CloudFront policy template
 ├── docs/
 │   ├── assets/          # README artwork
-│   └── screenshots/     # Verified project outcome screenshots
+│   ├── screenshots/     # Verified project outcome screenshots
+│   └── dynamodb-schema.md # Table keys, indexes, and leave-balance rules
 ├── public/
 ├── src/
 │   ├── components/      # Employee and shared UI components
@@ -145,6 +146,8 @@ smart-leave-absence-management-engine/
 ├── .env.example
 └── README.md
 ```
+
+See the [DynamoDB schema and quota rules](docs/dynamodb-schema.md) for the table keys, observed indexes, item attributes, and the fields that still need confirmation against the deployed tables.
 
 ## Team
 

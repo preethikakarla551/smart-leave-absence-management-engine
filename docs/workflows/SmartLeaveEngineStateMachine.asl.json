@@ -1,0 +1,294 @@
+{
+  "Comment": "Smart Leave & Absence Management Engine Workflow",
+  "StartAt": "ManagerApproval",
+  "States": {
+    "ManagerApproval": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke.waitForTaskToken",
+      "Parameters": {
+        "FunctionName": "arn:aws:lambda:us-east-2:431778287448:function:GenerateApprovalLinkLambda",
+        "Payload": {
+          "taskToken.$": "$$.Task.Token",
+          "requestId.$": "$.requestId",
+          "employeeId.$": "$.employeeId",
+          "managerId.$": "$.managerId",
+          "hrId.$": "$.hrId",
+          "managerEmail.$": "$.managerEmail",
+          "startDate.$": "$.startDate",
+          "endDate.$": "$.endDate",
+          "totalDays.$": "$.totalDays",
+          "leaveType.$": "$.leaveType",
+          "approvalStage": "MANAGER"
+        }
+      },
+      "ResultPath": "$.managerDecision",
+      "TimeoutSeconds": 172800,
+      "Next": "RecordManagerApproval",
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "ManagerRejected"
+          ],
+          "ResultPath": "$.managerError",
+          "Next": "RecordManagerRejection"
+        },
+        {
+          "ErrorEquals": [
+            "States.Timeout"
+          ],
+          "ResultPath": "$.managerTimeout",
+          "Next": "NotifyManagerTimeout"
+        }
+      ]
+    },
+    "RecordManagerApproval": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "arn:aws:lambda:us-east-2:431778287448:function:HandleApproval",
+        "Payload": {
+          "requestId.$": "$.requestId",
+          "employeeId.$": "$.employeeId",
+          "managerId.$": "$.managerId",
+          "hrId.$": "$.hrId",
+          "managerDecision.$": "$.managerDecision"
+        }
+      },
+      "ResultSelector": {
+        "statusCode.$": "$.Payload.statusCode",
+        "body.$": "States.StringToJson($.Payload.body)"
+      },
+      "ResultPath": "$.managerUpdate",
+      "Next": "CheckManagerUpdate"
+    },
+    "CheckManagerUpdate": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.managerUpdate.statusCode",
+          "NumericEquals": 200,
+          "Next": "CheckManagerDecision"
+        }
+      ],
+      "Default": "ApprovalUpdateFailed"
+    },
+    "CheckManagerDecision": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.managerUpdate.body.status",
+          "StringEquals": "PENDING_HR_REVIEW",
+          "Next": "HrApproval"
+        },
+        {
+          "Variable": "$.managerUpdate.body.status",
+          "StringEquals": "APPROVED",
+          "Next": "LeaveApproved"
+        }
+      ],
+      "Default": "ApprovalUpdateFailed"
+    },
+    "HrApproval": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke.waitForTaskToken",
+      "Parameters": {
+        "FunctionName": "arn:aws:lambda:us-east-2:431778287448:function:GenerateApprovalLinkLambda",
+        "Payload": {
+          "taskToken.$": "$$.Task.Token",
+          "requestId.$": "$.requestId",
+          "employeeId.$": "$.employeeId",
+          "managerId.$": "$.managerId",
+          "hrId.$": "$.hrId",
+          "managerEmail.$": "$.hrEmail",
+          "startDate.$": "$.startDate",
+          "endDate.$": "$.endDate",
+          "totalDays.$": "$.totalDays",
+          "leaveType.$": "$.leaveType",
+          "approvalStage": "HR"
+        }
+      },
+      "ResultPath": "$.hrDecision",
+      "TimeoutSeconds": 172800,
+      "Next": "RecordHrApproval",
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "ManagerRejected"
+          ],
+          "ResultPath": "$.hrError",
+          "Next": "RecordHrRejection"
+        },
+        {
+          "ErrorEquals": [
+            "States.Timeout"
+          ],
+          "ResultPath": "$.hrTimeout",
+          "Next": "NotifyHrTimeout"
+        }
+      ]
+    },
+    "RecordHrApproval": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "arn:aws:lambda:us-east-2:431778287448:function:HandleApproval",
+        "Payload": {
+          "requestId.$": "$.requestId",
+          "employeeId.$": "$.employeeId",
+          "managerId.$": "$.managerId",
+          "hrId.$": "$.hrId",
+          "hrDecision.$": "$.hrDecision"
+        }
+      },
+      "ResultSelector": {
+        "statusCode.$": "$.Payload.statusCode",
+        "body.$": "States.StringToJson($.Payload.body)"
+      },
+      "ResultPath": "$.hrUpdate",
+      "Next": "CheckHrUpdate"
+    },
+    "CheckHrUpdate": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.hrUpdate.statusCode",
+          "NumericEquals": 200,
+          "Next": "CheckFinalApproval"
+        }
+      ],
+      "Default": "ApprovalUpdateFailed"
+    },
+    "CheckFinalApproval": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.hrUpdate.body.status",
+          "StringEquals": "APPROVED",
+          "Next": "LeaveApproved"
+        }
+      ],
+      "Default": "ApprovalUpdateFailed"
+    },
+    "RecordManagerRejection": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "arn:aws:lambda:us-east-2:431778287448:function:HandleApproval",
+        "Payload": {
+          "requestId.$": "$.requestId",
+          "employeeId.$": "$.employeeId",
+          "managerId.$": "$.managerId",
+          "hrId.$": "$.hrId",
+          "managerDecision": {
+            "status": "REJECTED",
+            "approverId.$": "$.managerId",
+            "approverRole": "MANAGER",
+            "approvalStage": "MANAGER",
+            "comments": "Rejected through the Step Functions approval link"
+          }
+        }
+      },
+      "ResultSelector": {
+        "statusCode.$": "$.Payload.statusCode",
+        "body.$": "States.StringToJson($.Payload.body)"
+      },
+      "ResultPath": "$.managerUpdate",
+      "Next": "CheckManagerRejection"
+    },
+    "CheckManagerRejection": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.managerUpdate.statusCode",
+          "NumericEquals": 200,
+          "Next": "LeaveRejected"
+        }
+      ],
+      "Default": "ApprovalUpdateFailed"
+    },
+    "RecordHrRejection": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "arn:aws:lambda:us-east-2:431778287448:function:HandleApproval",
+        "Payload": {
+          "requestId.$": "$.requestId",
+          "employeeId.$": "$.employeeId",
+          "managerId.$": "$.managerId",
+          "hrId.$": "$.hrId",
+          "hrDecision": {
+            "status": "REJECTED",
+            "approverId.$": "$.hrId",
+            "approverRole": "HR",
+            "approvalStage": "HR",
+            "comments": "Rejected by HR through the Step Functions approval link"
+          }
+        }
+      },
+      "ResultSelector": {
+        "statusCode.$": "$.Payload.statusCode",
+        "body.$": "States.StringToJson($.Payload.body)"
+      },
+      "ResultPath": "$.hrUpdate",
+      "Next": "CheckHrRejection"
+    },
+    "CheckHrRejection": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.hrUpdate.statusCode",
+          "NumericEquals": 200,
+          "Next": "LeaveRejected"
+        }
+      ],
+      "Default": "ApprovalUpdateFailed"
+    },
+    "NotifyManagerTimeout": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "arn:aws:lambda:us-east-2:431778287448:function:CheckLeaveTimeout",
+        "Payload": {}
+      },
+      "ResultPath": "$.timeoutNotice",
+      "Next": "ManagerTimedOut"
+    },
+    "NotifyHrTimeout": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "arn:aws:lambda:us-east-2:431778287448:function:CheckLeaveTimeout",
+        "Payload": {}
+      },
+      "ResultPath": "$.timeoutNotice",
+      "Next": "HrTimedOut"
+    },
+    "ManagerTimedOut": {
+      "Type": "Pass",
+      "Result": {
+        "status": "MANAGER_TIMEOUT",
+        "message": "The timeout notice was sent; the request was not automatically approved."
+      },
+      "End": true
+    },
+    "HrTimedOut": {
+      "Type": "Pass",
+      "Result": {
+        "status": "HR_TIMEOUT",
+        "message": "The timeout notice was sent; the request was not automatically approved."
+      },
+      "End": true
+    },
+    "LeaveApproved": {
+      "Type": "Succeed"
+    },
+    "LeaveRejected": {
+      "Type": "Succeed"
+    },
+    "ApprovalUpdateFailed": {
+      "Type": "Fail",
+      "Error": "ApprovalUpdateFailed",
+      "Cause": "HandleApproval did not return a successful response."
+    }
+  }
+}

@@ -96,6 +96,10 @@ These AWS Step Functions execution graphs document four workflow outcomes from t
 
 <img src="docs/screenshots/workflow-hr-rejection.png" alt="Step Functions execution showing the HR-stage rejection path and final LeaveRejected state" width="100%" />
 
+## Step Functions definition
+
+The current Amazon States Language (ASL) definition is available at [`docs/workflows/SmartLeaveEngineStateMachine.asl.json`](docs/workflows/SmartLeaveEngineStateMachine.asl.json). It includes manager and HR approval, rejection recording, timeout notifications, and final workflow outcomes. The Lambda ARNs in this snapshot point to the project AWS account; update them for another account before deploying.
+
 ## Notification screenshots
 
 These examples show SES email notifications: the 48-hour manager-inactivity alert sent to HR and the manager approval email. The alert screenshots contain test employee names and request IDs. Amazon SNS is included in the architecture for manager alerts; a separate SNS delivery screenshot was not supplied.
@@ -170,6 +174,7 @@ smart-leave-absence-management-engine/
 │   ├── assets/          # README artwork
 │   ├── screenshots/     # Verified project outcome screenshots
 │   ├── schema/          # Separate entity-and-attributes diagram per table
+│   ├── workflows/       # Step Functions ASL definition
 │   └── dynamodb-schema.md # Table keys, indexes, and leave-balance rules
 ├── public/
 ├── src/

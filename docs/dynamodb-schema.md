@@ -2,19 +2,19 @@
 
 This document records the Smart Leave Engine tables and indexes discussed for the project. DynamoDB is schemaless for non-key attributes, so only partition keys, sort keys, and index keys are enforced by the service. Check names and key types in the deployed tables before treating any unverified index details as final.
 
-<img src="assets/dynamodb-schema.svg" alt="Visual map of Smart Leave Engine DynamoDB tables and key relationships" width="100%" />
+Each table has its own visual entity-and-attributes diagram, following the separate-table format used in the project examples. Open a table diagram from the links below.
 
 ## Table summary
 
-| Table | Partition key | Sort key | Purpose |
+| Table / diagram | Partition key | Sort key | Purpose |
 | --- | --- | --- | --- |
-| `employees` | `employee_id` (String) | None | Employee identity and organization mapping |
-| `leave_requests` | `employee_id` (String) | `request_id` (String) | Leave applications and approval state |
-| `leave_balances` | `employee_id` (String) | `balance_key` (String) | Per-employee, per-leave-type, per-year quota balances |
-| `leave_type_config` | `leave_type_id` (String) | None | Configurable leave rules and annual quota settings |
-| `leave_date_locks` | `employee_id` (String) | `date_key` (String) | Per-day locks used to stop overlapping leave requests |
-| `leave_workflow_tasks` | `request_id` (String) | `approval_stage` (String) | Step Functions callback token for the active approval stage |
-| `team_absences` | Confirm in the deployed table | Confirm in the deployed table | Calendar-oriented approved absence data, if populated by the backend |
+| [`employees`](schema/employees.md) | `employee_id` (String) | None | Employee identity and organization mapping |
+| [`leave_requests`](schema/leave-requests.md) | `employee_id` (String) | `request_id` (String) | Leave applications and approval state |
+| [`leave_balances`](schema/leave-balances.md) | `employee_id` (String) | `balance_key` (String) | Per-employee, per-leave-type, per-year quota balances |
+| [`leave_type_config`](schema/leave-type-config.md) | `leave_type_id` (String) | None | Configurable leave rules and annual quota settings |
+| [`leave_date_locks`](schema/leave-date-locks.md) | `employee_id` (String) | `date_key` (String) | Per-day locks used to stop overlapping leave requests |
+| [`leave_workflow_tasks`](schema/leave-workflow-tasks.md) | `request_id` (String) | `approval_stage` (String) | Step Functions callback token for the active approval stage |
+| [`team_absences`](schema/team-absences.md) | Confirm in the deployed table | Confirm in the deployed table | Calendar-oriented approved absence data, if populated by the backend |
 
 The first six key definitions above reflect the project’s AWS Console views and integration work. The `team_absences` key schema was not visible in the material reviewed; copy its exact keys from the DynamoDB table details.
 

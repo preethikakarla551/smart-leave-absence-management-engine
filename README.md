@@ -83,7 +83,28 @@ These AWS Step Functions execution graphs document three workflow outcomes from 
 
 <img src="docs/screenshots/workflow-manager-rejection.png" alt="Step Functions execution with manager rejection completed" width="100%" />
 
-Employee submission and SES email screenshots can be added when available to complete the end-to-end evidence set. Do not upload passwords, Cognito tokens, or signed approval-link tokens.
+## Notification screenshots
+
+These examples show the 48-hour manager-inactivity alert sent to HR and the manager approval email. The alert screenshots contain test employee names and request IDs.
+
+<details>
+  <summary>48-hour alert details</summary>
+  <img src="docs/screenshots/notification-48-hour-alert-details.png" alt="48-hour approval overdue alert with test request details" width="512" />
+</details>
+
+<details>
+  <summary>48-hour alert email</summary>
+  <img src="docs/screenshots/notification-48-hour-alert-email.png" alt="Email notification that a manager approval is overdue" width="512" />
+</details>
+
+<details>
+  <summary>Manager approval email with approve and reject actions</summary>
+  <img src="docs/screenshots/notification-manager-approval-email.png" alt="SES leave request email containing manager approve and reject actions" width="800" />
+</details>
+
+Do not upload passwords, Cognito tokens, or signed approval-link tokens. The two browser screenshots containing signed tokens are intentionally excluded.
+
+The employee submission and post-approval employee confirmation email still need screenshots to complete the end-to-end evidence set.
 
 ## Current integration status
 
@@ -134,8 +155,8 @@ smart-leave-absence-management-engine/
 ├── cloudfront-s3/       # S3/CloudFront policy template
 ├── docs/
 │   ├── assets/          # README artwork
-│   │   └── dynamodb-schema.svg # Visual table and relationship map
 │   ├── screenshots/     # Verified project outcome screenshots
+│   ├── schema/          # Separate entity-and-attributes diagram per table
 │   └── dynamodb-schema.md # Table keys, indexes, and leave-balance rules
 ├── public/
 ├── src/

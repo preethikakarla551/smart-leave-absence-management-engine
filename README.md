@@ -31,7 +31,7 @@ The React frontend is hosted privately in Amazon S3 and served over HTTPS throug
 | Identity and security | Cognito sign-in and password challenges; bearer ID-token requests; API Gateway JWT authorization |
 | Serverless data | API Gateway and Lambda integration with DynamoDB leave requests, employee balances, and configuration |
 | Workflow automation | Step Functions manager/HR approval stages and timeout handling |
-| Notifications and scheduling | SES email notifications and EventBridge weekly balance-summary job |
+| Notifications and scheduling | SNS manager alerts, SES email notifications, and EventBridge weekly balance-summary job |
 | Static web delivery | Production build, private S3 origin, CloudFront Origin Access Control, HTTPS and cache invalidation |
 
 ## Technology showcase
@@ -45,6 +45,7 @@ The React frontend is hosted privately in Amazon S3 and served over HTTPS throug
   <img src="https://img.shields.io/badge/Step%20Functions-Approval%20workflow-7C3AED?style=flat-square&logo=amazonaws&logoColor=white" alt="Step Functions" />
   <img src="https://img.shields.io/badge/EventBridge-Scheduling-E7157B?style=flat-square&logo=amazonaws&logoColor=white" alt="EventBridge" />
   <img src="https://img.shields.io/badge/SES-Email%20notifications-527FFF?style=flat-square&logo=amazonaws&logoColor=white" alt="Amazon SES" />
+  <img src="https://img.shields.io/badge/SNS-Manager%20alerts-E7157B?style=flat-square&logo=amazonaws&logoColor=white" alt="Amazon SNS" />
   <img src="https://img.shields.io/badge/S3-Private%20origin-569A31?style=flat-square&logo=amazons3&logoColor=white" alt="Amazon S3" />
   <img src="https://img.shields.io/badge/CloudFront-HTTPS%20delivery-8C4FFF?style=flat-square&logo=amazoncloudfront&logoColor=white" alt="CloudFront" />
 </p>
@@ -61,6 +62,8 @@ flowchart LR
   L --> D[(DynamoDB)]
   L --> SF[Step Functions approvals]
   SF --> L
+  L -->|manager alert| SNS[Amazon SNS]
+  SNS --> M[Manager]
   L --> SES[SES notifications]
   EB[EventBridge weekly schedule] --> W[Weekly balance Lambda]
   W --> D
@@ -95,7 +98,7 @@ These AWS Step Functions execution graphs document four workflow outcomes from t
 
 ## Notification screenshots
 
-These examples show the 48-hour manager-inactivity alert sent to HR and the manager approval email. The alert screenshots contain test employee names and request IDs.
+These examples show SES email notifications: the 48-hour manager-inactivity alert sent to HR and the manager approval email. The alert screenshots contain test employee names and request IDs. Amazon SNS is included in the architecture for manager alerts; a separate SNS delivery screenshot was not supplied.
 
 <details>
   <summary>48-hour alert details</summary>

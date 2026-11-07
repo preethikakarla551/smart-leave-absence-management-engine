@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300" role="img" aria-labelledby="title desc">
+  <title id="title">Smart Leave Engine</title>
+  <desc id="desc">A colorful leave management platform for employees, managers, and HR.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0B4F49"/>
+      <stop offset="0.55" stop-color="#087E8B"/>
+      <stop offset="1" stop-color="#5B3CC4"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".25"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="300" rx="32" fill="url(#bg)"/>
+  <circle cx="1085" cy="44" r="125" fill="#47D7AC" opacity=".18"/>
+  <circle cx="1010" cy="270" r="115" fill="#FFCA6A" opacity=".14"/>
+  <rect x="825" y="48" width="278" height="204" rx="22" fill="url(#card)" stroke="#FFFFFF" stroke-opacity=".25"/>
+  <rect x="858" y="84" width="212" height="14" rx="7" fill="#FFFFFF" opacity=".9"/>
+  <rect x="858" y="119" width="45" height="40" rx="10" fill="#77E2BD"/>
+  <rect x="916" y="119" width="45" height="40" rx="10" fill="#FFFFFF" opacity=".82"/>
+  <rect x="974" y="119" width="45" height="40" rx="10" fill="#FFCE79"/>
+  <rect x="1032" y="119" width="38" height="40" rx="10" fill="#FFFFFF" opacity=".82"/>
+  <rect x="858" y="178" width="212" height="12" rx="6" fill="#FFFFFF" opacity=".7"/>
+  <rect x="858" y="202" width="152" height="12" rx="6" fill="#FFFFFF" opacity=".42"/>
+  <g transform="translate(72 79)" fill="none" stroke="#8FF0CE" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="0" y="10" width="62" height="60" rx="12"/>
+    <path d="M16 0v20M46 0v20M2 30h58M18 44h2M42 44h2M18 58h2M42 58h2"/>
+  </g>
+  <text x="164" y="130" fill="#FFFFFF" font-family="Segoe UI, Arial, sans-serif" font-size="47" font-weight="700">Smart Leave Engine</text>
+  <text x="76" y="194" fill="#E6FFFA" font-family="Segoe UI, Arial, sans-serif" font-size="21" font-weight="500">Employee • Manager • HR</text>
+  <text x="76" y="231" fill="#D3F8F0" font-family="Segoe UI, Arial, sans-serif" font-size="17">A serverless workflow for leave requests, approvals, and absence visibility</text>
+</svg>

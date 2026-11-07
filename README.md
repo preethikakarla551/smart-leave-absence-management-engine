@@ -1,116 +1,156 @@
-# Smart Leave & Absence Management Engine
+<div align="center">
 
-A React-based demonstration of employee, manager, and HR leave portals. The long-term project plan is to connect the frontend to AWS services for authentication, leave storage, approvals, and notifications.
+<img src="docs/assets/smart-leave-banner.svg" alt="Smart Leave Engine" width="100%" />
 
-> **Current status:** This repository currently contains a frontend demo. Sign-in uses demo-only credentials defined in the client code. Leave requests, balances, and approval changes are held in browser memory and are lost when the page is refreshed. Cognito, API Gateway, Lambda, DynamoDB, Step Functions, SNS, SES, and EventBridge are not connected to the running interface yet. Use fake data only.
+### A full-cycle leave management project built with a colorful, cloud-first experience
 
-## Current demo features
+<a href="https://d2a9x7dvtwdsno.cloudfront.net"><img src="https://img.shields.io/badge/Live%20portal-HTTPS-147D6B?style=for-the-badge&logo=amazoncloudfront&logoColor=white" alt="Open live portal" /></a>
+<img src="https://img.shields.io/badge/Frontend-React-61DAFB?style=for-the-badge&logo=react&logoColor=20232A" alt="React" />
+<img src="https://img.shields.io/badge/Auth-Amazon%20Cognito-8C4FFF?style=for-the-badge&logo=amazoncognito&logoColor=white" alt="Amazon Cognito" />
+<img src="https://img.shields.io/badge/Hosting-S3%20%2B%20CloudFront-FF9900?style=for-the-badge&logo=amazonaws&logoColor=white" alt="S3 and CloudFront" />
 
-- Employee, manager, and HR portal selection with demo sign-in.
-- Employee leave request form, balance cards, and request history.
-- Manager view to review, approve, or reject employee requests.
-- Requests longer than five days move to HR after manager approval; shorter requests are final after manager approval.
-- HR view to review requests awaiting HR approval and make the final decision.
-- Team absence calendar component with month navigation. Employee names and absences are not hard-coded; the calendar stays empty until connected to employee and leave data.
-- CSV export of requests currently held in the browser.
-- Responsive React interface with Lucide icons.
+<br />
 
-These are frontend demonstration behaviors. They do not enforce leave quotas on the server, prevent overlapping requests, persist records, load employees from DynamoDB, send notifications, or provide secure role-based access on a server. All request, balance, and approval state is local to the browser session.
+![Project status](https://img.shields.io/badge/Project-Integration%20validation%20in%20progress-7C3AED?style=flat-square)
+![Region](https://img.shields.io/badge/AWS%20region-us--east--2-2563EB?style=flat-square&logo=amazonaws&logoColor=white)
+![License](https://img.shields.io/badge/License-Educational%20project-0F766E?style=flat-square)
 
-## Repository structure
+</div>
+
+## Project overview
+
+Smart Leave Engine brings employees, managers, and HR into one leave-management workflow. Employees can review balances, submit leave, and track requests. Managers and HR review requests, while approved absences feed the team calendar and downloadable report.
+
+The React frontend is hosted privately in Amazon S3 and served over HTTPS through CloudFront. Cognito provides sign-in, and the frontend sends Cognito ID tokens to API Gateway routes for backend data and actions.
+
+## What the project demonstrates
+
+| Area | Project skills demonstrated |
+| --- | --- |
+| Frontend | React UI, reusable components, responsive dashboards, form validation, status displays, CSV export |
+| Identity and security | Cognito sign-in and password challenges; bearer ID-token requests; API Gateway JWT authorization |
+| Serverless data | API Gateway and Lambda integration with DynamoDB leave requests, employee balances, and configuration |
+| Workflow automation | Step Functions manager/HR approval stages and timeout handling |
+| Notifications and scheduling | SES email notifications and EventBridge weekly balance-summary job |
+| Static web delivery | Production build, private S3 origin, CloudFront Origin Access Control, HTTPS and cache invalidation |
+
+## Technology showcase
+
+<p>
+  <img src="https://img.shields.io/badge/React-Frontend-61DAFB?style=flat-square&logo=react&logoColor=20232A" alt="React" />
+  <img src="https://img.shields.io/badge/Amazon%20Cognito-Authentication-8C4FFF?style=flat-square&logo=amazoncognito&logoColor=white" alt="Amazon Cognito" />
+  <img src="https://img.shields.io/badge/API%20Gateway-HTTP%20API-FF4F8B?style=flat-square&logo=amazonaws&logoColor=white" alt="API Gateway" />
+  <img src="https://img.shields.io/badge/AWS%20Lambda-Serverless%20logic-FF9900?style=flat-square&logo=awslambda&logoColor=white" alt="AWS Lambda" />
+  <img src="https://img.shields.io/badge/DynamoDB-Data-4053D6?style=flat-square&logo=amazondynamodb&logoColor=white" alt="DynamoDB" />
+  <img src="https://img.shields.io/badge/Step%20Functions-Approval%20workflow-7C3AED?style=flat-square&logo=amazonaws&logoColor=white" alt="Step Functions" />
+  <img src="https://img.shields.io/badge/EventBridge-Scheduling-E7157B?style=flat-square&logo=amazonaws&logoColor=white" alt="EventBridge" />
+  <img src="https://img.shields.io/badge/SES-Email%20notifications-527FFF?style=flat-square&logo=amazonaws&logoColor=white" alt="Amazon SES" />
+  <img src="https://img.shields.io/badge/S3-Private%20origin-569A31?style=flat-square&logo=amazons3&logoColor=white" alt="Amazon S3" />
+  <img src="https://img.shields.io/badge/CloudFront-HTTPS%20delivery-8C4FFF?style=flat-square&logo=amazoncloudfront&logoColor=white" alt="CloudFront" />
+</p>
+
+## Architecture
+
+```mermaid
+flowchart LR
+  E[Employee / Manager / HR] --> CF[CloudFront over HTTPS]
+  CF --> S3[Private S3 frontend]
+  E --> C[Cognito sign-in]
+  C -->|ID token| API[API Gateway]
+  API --> L[Lambda functions]
+  L --> D[(DynamoDB)]
+  L --> SF[Step Functions approvals]
+  SF --> L
+  L --> SES[SES notifications]
+  EB[EventBridge weekly schedule] --> W[Weekly balance Lambda]
+  W --> D
+  W --> SES
+```
+
+## Workflow outcome screenshots
+
+These AWS Step Functions execution graphs document three workflow outcomes from the project: manager approval followed by HR approval, manager approval, and manager rejection.
+
+### Manager approval followed by HR approval
+
+<img src="docs/screenshots/workflow-hr-approval.png" alt="Step Functions execution with manager and HR approval completed" width="100%" />
+
+### Manager approval
+
+<img src="docs/screenshots/workflow-manager-approval.png" alt="Step Functions execution with manager approval completed" width="100%" />
+
+### Manager rejection
+
+<img src="docs/screenshots/workflow-manager-rejection.png" alt="Step Functions execution with manager rejection completed" width="100%" />
+
+Employee submission and SES email screenshots can be added when available to complete the end-to-end evidence set. Do not upload passwords, Cognito tokens, or signed approval-link tokens.
+
+## Current integration status
+
+- Cognito sign-in and the employee, manager, and HR API dashboard routes are integrated in the frontend.
+- Leave submission and approval actions call authenticated API Gateway routes.
+- The weekly EventBridge Lambda has successfully run and sent a balance-summary email.
+- The workflow screenshots include completed manager approval, manager-plus-HR approval, and rejection paths. If an approval returns HTTP 409, inspect the employee balance record: `available` and `used` must be DynamoDB Numbers, not Strings.
+- The backend and SAM infrastructure are maintained separately from this frontend repository by the infrastructure owner.
+
+This is a team project in active integration. Confirm the deployed routes, table names, IAM policies, and workflow definition against the team’s current SAM stack before using the portal with real employees.
+
+## Run locally on Windows
+
+Requirements: Node.js and npm.
+
+1. Clone this repository and open PowerShell in its folder.
+2. Copy the sample configuration:
+
+   ```powershell
+   Copy-Item .env.example .env.local
+   ```
+
+3. Install packages and start the development server:
+
+   ```powershell
+   npm.cmd install
+   npm.cmd start
+   ```
+
+4. Open `http://localhost:3000`.
+
+The Cognito IDs and API URL are public client configuration values. Never put passwords, AWS access keys, HMAC secrets, Cognito tokens, or private employee data in `.env.local` or GitHub. `.env.local` is ignored by Git.
+
+## Build and deploy the frontend
+
+Run a production build:
+
+```powershell
+npm.cmd run build
+```
+
+Upload the **contents** of `build/` to the root of the private S3 bucket. Keep S3 Block Public Access enabled, use CloudFront Origin Access Control, set the default root object to `index.html`, require HTTPS, then invalidate `/*` after uploading.
+
+## Repository map
 
 ```text
 smart-leave-absence-management-engine/
-├── cloudfront-s3/
-│   └── s3-bucket-policy.json       # OAC policy template; replace its placeholders
-├── public/                         # Static public assets
+├── cloudfront-s3/       # S3/CloudFront policy template
+├── docs/
+│   ├── assets/          # README artwork
+│   └── screenshots/     # Verified project outcome screenshots
+├── public/
 ├── src/
-│   ├── components/
-│   │   ├── Employee/
-│   │   │   ├── BalanceCards.jsx
-│   │   │   └── LeaveForm.jsx
-│   │   └── Shared/
-│   │       ├── CsvExportButton.jsx
-│   │       └── TeamCalendar.jsx
-│   ├── config/
-│   │   └── aws-config.js            # Placeholder AWS configuration
-│   ├── services/
-│   │   └── api.js                   # API helper scaffold; not wired into the demo UI
+│   ├── components/      # Employee and shared UI components
+│   ├── config/          # Cognito and API configuration
+│   ├── services/        # Cognito authentication and API requests
 │   ├── App.js
 │   └── index.js
-├── .env.example                     # Placeholder values only
-├── .gitignore
-├── package.json
-├── package-lock.json
+├── .env.example
 └── README.md
 ```
 
-## Run locally
+## Team
 
-You need Node.js and npm installed. From the repository root:
-
-```bash
-npm install
-npm start
-```
-
-For Windows PowerShell, if `npm` is blocked by the PowerShell script policy, use the Windows command launcher:
-
-```powershell
-npm.cmd install
-npm.cmd start
-```
-
-The development site normally opens at `http://localhost:3000`.
-
-## Build for deployment
-
-Create the production build from the repository root:
-
-```bash
-npm run build
-```
-
-In Windows PowerShell, use `npm.cmd run build` if the `npm` command is blocked. The generated site is written to `build/`. Do not commit `build/` or `node_modules/`; they are generated or installed locally and are excluded by `.gitignore`.
-
-## Host with private S3 and CloudFront
-
-The current hosted demo uses Amazon S3 as a private origin and CloudFront with Origin Access Control (OAC).
-
-1. Keep **Block all public access** enabled on the S3 bucket.
-2. Configure the CloudFront origin as the regular S3 bucket origin, with OAC enabled. Do not use the S3 website endpoint when using OAC.
-3. Set the CloudFront default root object to `index.html` and require HTTPS for viewers.
-4. After running the production build, upload the **contents** of `build/` to the root of the bucket so `index.html` is at the bucket root. Do not upload the `build/` folder as a nested directory.
-5. After a new upload, create a CloudFront invalidation for `/*` so cached files refresh.
-
-The file `cloudfront-s3/s3-bucket-policy.json` is a template only. Replace its bucket, AWS account, and distribution ID placeholders with the values for your own deployment. Keep the policy restricted to the intended CloudFront distribution.
-
-## Configuration and credentials
-
-`.env.example` documents placeholder variable names for future Cognito and API Gateway integration. Copy it to `.env` only when you have real development configuration values. `.env` is ignored by Git. Do not commit AWS credentials, passwords, tokens, private keys, or real employee data.
-
-The current demo login values are embedded in `src/App.js` so the front-end demo can be tried before Cognito is ready. They are not secure credentials: anyone can inspect a public frontend or repository to find them. Never reuse them for real accounts or sensitive information. Replace the demo check with Cognito authentication before using this application with employees.
-
-## Planned AWS integration
-
-The team plan calls for the following services, which must be implemented and connected before the project can be considered a full leave management system:
-
-- **Cognito:** authenticate employees, managers, and HR administrators.
-- **API Gateway and Lambda:** validate requests and expose authenticated API endpoints.
-- **DynamoDB:** persist leave requests, balances, and configurable leave rules.
-- **Step Functions:** coordinate manager and HR approvals.
-- **SNS and SES:** notify managers and employees about workflow changes.
-- **EventBridge:** run scheduled carry-forward and balance-summary jobs.
-
-The API helper and AWS configuration files are scaffolding; placeholder URLs and IDs do not indicate that these services are deployed.
-
-## Team responsibilities
-
-| Team member | Planned area | Planned deliverables |
-|---|---|---|
-| Sushant | Data and logic | DynamoDB table design, overlap checks, and atomic balance updates |
-| Omsri | Workflows and messaging | Approval workflow, signed action links, and notifications |
-| Payal | Infrastructure and security | Cognito, infrastructure automation, and scheduled jobs |
-| Preethi | Frontend and hosting | Employee/manager/HR portals, team calendar, reports, S3 and CloudFront hosting |
-
-These are planned responsibilities; the status of each AWS service should be updated as the team implements and deploys it.
+| Team member | Area |
+| --- | --- |
+| Sushant | DynamoDB schema and leave data logic |
+| Omsri | Approval workflow and messaging |
+| Payal | SAM infrastructure, security, and scheduled jobs |
+| Preethi | Frontend, dashboards, and static hosting |

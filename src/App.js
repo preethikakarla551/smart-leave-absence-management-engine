@@ -10,6 +10,9 @@ import {
   FileSpreadsheet
 } from 'lucide-react';
 import {
+  completeNewPasswordSignIn,
+  finishCognitoPasswordReset,
+  startCognitoPasswordReset,
   signInWithCognito,
   signOutFromCognito
 } from './services/auth';
@@ -38,6 +41,11 @@ export default function App() {
   const [portal, setPortal] = useState('employee');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [needsNewPassword, setNeedsNewPassword] = useState(false);
+  const [needsPasswordReset, setNeedsPasswordReset] = useState(false);
+  const [resetCode, setResetCode] = useState('');
   const [signedIn, setSignedIn] = useState(false);
   const [dashboard, setDashboard] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -66,6 +74,26 @@ export default function App() {
       const result = await signInWithCognito(email, password);
 
       if (!result.signedIn) {
+        // Amplify versions may expose the first-login challenge in different
+        // nextStep fields. Inspect the whole nextStep object so this flow still
+        // opens the password-change form when Cognito requires it.
+        const nextStepText = JSON.stringify(result.nextStep || {}).toUpperCase();
+        if (nextStepText.includes('NEW_PASSWORD_REQUIRED')) {
+          setNeedsNewPassword(true);
+          setPassword('');
+          setNotice('Your temporary password was accepted. Choose a new password to finish signing in.');
+          return;
+        }
+
+        if (nextStepText.includes('RESET_PASSWORD')) {
+          await startCognitoPasswordReset(email);
+          setNeedsPasswordReset(true);
+          setResetCode('');
+          setPassword('');
+          setNotice('Cognito sent a password-reset code to the account recovery email. Enter it below with your new password.');
+          return;
+        }
+
         throw new Error(
           `Cognito needs another sign-in step: ${
             result.nextStep?.signInStep || 'follow the Cognito instructions'
@@ -84,6 +112,82 @@ export default function App() {
     }
   };
 
+  const handlePasswordReset = async (event) => {
+    event.preventDefault();
+    setError('');
+    setNotice('');
+
+    if (!resetCode.trim()) {
+      setError('Enter the password-reset code sent by Cognito.');
+      return;
+    }
+    if (!newPassword) {
+      setError('Enter a new password.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError('The new passwords do not match.');
+      return;
+    }
+
+    setBusy(true);
+    try {
+      await finishCognitoPasswordReset(email, resetCode, newPassword);
+      setNeedsPasswordReset(false);
+      setResetCode('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setPassword('');
+      setNotice('Password updated. Sign in with your new password.');
+    } catch (err) {
+      setError(err.message || 'Could not reset the password. Check the code and try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleNewPassword = async (event) => {
+    event.preventDefault();
+    setError('');
+    setNotice('');
+
+    if (!newPassword) {
+      setError('Enter a new password.');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setError('The new passwords do not match.');
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const result = await completeNewPasswordSignIn(newPassword);
+
+      if (!result.signedIn) {
+        throw new Error(
+          `Cognito needs another sign-in step: ${
+            result.nextStep?.signInStep || 'follow the Cognito instructions'
+          }`
+        );
+      }
+
+      const data = await fetchDashboard(portal);
+      setDashboard(data);
+      setSignedIn(true);
+      setNeedsNewPassword(false);
+      setNeedsPasswordReset(false);
+      setResetCode('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err) {
+      setError(err.message || 'Could not set the new password.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const handleSignOut = async () => {
     setBusy(true);
     try {
@@ -92,6 +196,9 @@ export default function App() {
       setSignedIn(false);
       setDashboard(null);
       setPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setNeedsNewPassword(false);
       setError('');
       setNotice('');
       setBusy(false);
@@ -243,9 +350,9 @@ export default function App() {
           <div style={styles.loginCard}>
           <div style={styles.eyebrow}>PORTAL LOGIN</div>
           <h2 style={styles.loginHeading}>Sign in</h2>
-          <p style={styles.subtitle}>Choose your portal and sign in to continue.</p>
+          <p style={styles.subtitle}>{needsNewPassword ? 'Set a new password to finish activating your account.' : needsPasswordReset ? 'Enter the reset code sent to your account email and choose a new password.' : 'Choose your portal and sign in to continue.'}</p>
 
-          <div style={styles.portals}>
+          {!needsNewPassword && !needsPasswordReset && <div style={styles.portals}>
             {[
               ['employee', 'Employee', 'Apply and view leave', UserRound],
               ['manager', 'Manager', 'Review team requests', UsersRound],
@@ -265,9 +372,9 @@ export default function App() {
                 <span style={{ display: 'block', marginTop: '3px', fontSize: '12px' }}>{description}</span>
               </button>
             ))}
-          </div>
+          </div>}
 
-          <form onSubmit={handleSignIn}>
+          <form onSubmit={needsNewPassword ? handleNewPassword : needsPasswordReset ? handlePasswordReset : handleSignIn}>
             <label style={styles.label}>Work email</label>
             <input
               style={styles.input}
@@ -275,23 +382,86 @@ export default function App() {
               autoComplete="username"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
+              readOnly={needsNewPassword || needsPasswordReset}
               required
             />
 
-            <label style={styles.label}>Password</label>
-            <input
-              style={styles.input}
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              required
-            />
+            {needsPasswordReset ? (
+              <>
+                <label style={styles.label}>Password reset code</label>
+                <input
+                  style={styles.input}
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  value={resetCode}
+                  onChange={(event) => setResetCode(event.target.value)}
+                  required
+                />
+
+                <label style={styles.label}>New password</label>
+                <input
+                  style={styles.input}
+                  type="password"
+                  autoComplete="new-password"
+                  value={newPassword}
+                  onChange={(event) => setNewPassword(event.target.value)}
+                  required
+                />
+
+                <label style={styles.label}>Confirm new password</label>
+                <input
+                  style={styles.input}
+                  type="password"
+                  autoComplete="new-password"
+                  value={confirmPassword}
+                  onChange={(event) => setConfirmPassword(event.target.value)}
+                  required
+                />
+              </>
+            ) : needsNewPassword ? (
+              <>
+                <label style={styles.label}>New password</label>
+                <input
+                  style={styles.input}
+                  type="password"
+                  autoComplete="new-password"
+                  value={newPassword}
+                  onChange={(event) => setNewPassword(event.target.value)}
+                  required
+                />
+
+                <label style={styles.label}>Confirm new password</label>
+                <input
+                  style={styles.input}
+                  type="password"
+                  autoComplete="new-password"
+                  value={confirmPassword}
+                  onChange={(event) => setConfirmPassword(event.target.value)}
+                  required
+                />
+              </>
+            ) : (
+              <>
+                <label style={styles.label}>Password</label>
+                <input
+                  style={styles.input}
+                  type="password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  required
+                />
+              </>
+            )}
 
             {error && <p style={styles.error}>{error}</p>}
+            {notice && <p style={styles.notice}>{notice}</p>}
 
             <button style={styles.primaryButton} disabled={busy}>
-              {busy ? 'Signing in…' : 'Sign in'}
+              {busy
+                ? (needsPasswordReset ? 'Resetting password…' : needsNewPassword ? 'Setting password…' : 'Signing in…')
+                : (needsPasswordReset ? 'Reset password' : needsNewPassword ? 'Set new password' : 'Sign in')}
             </button>
           </form>
           </div>

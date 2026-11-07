@@ -134,6 +134,7 @@ smart-leave-absence-management-engine/
 ├── cloudfront-s3/       # S3/CloudFront policy template
 ├── docs/
 │   ├── assets/          # README artwork
+│   │   └── dynamodb-schema.svg # Visual table and relationship map
 │   ├── screenshots/     # Verified project outcome screenshots
 │   └── dynamodb-schema.md # Table keys, indexes, and leave-balance rules
 ├── public/

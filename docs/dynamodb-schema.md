@@ -2,6 +2,8 @@
 
 This document records the Smart Leave Engine tables and indexes discussed for the project. DynamoDB is schemaless for non-key attributes, so only partition keys, sort keys, and index keys are enforced by the service. Check names and key types in the deployed tables before treating any unverified index details as final.
 
+<img src="assets/dynamodb-schema.svg" alt="Visual map of Smart Leave Engine DynamoDB tables and key relationships" width="100%" />
+
 ## Table summary
 
 | Table | Partition key | Sort key | Purpose |

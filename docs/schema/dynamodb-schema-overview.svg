@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1500" viewBox="0 0 1800 1500" role="img" aria-labelledby="title desc">
+  <title id="title">Smart Leave Engine DynamoDB schema overview</title>
+  <desc id="desc">Seven DynamoDB table cards showing primary keys, indexes, and important attributes. Unverified table details are flagged.</desc>
+  <defs>
+    <linearGradient id="banner" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#174ea6"/><stop offset="1" stop-color="#6c3dd1"/></linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%"><feDropShadow dx="0" dy="5" stdDeviation="8" flood-color="#10233f" flood-opacity=".13"/></filter>
+    <style>
+      .title{font:700 34px 'Segoe UI',Arial,sans-serif;fill:#fff}.subtitle{font:17px 'Segoe UI',Arial,sans-serif;fill:#dbeafe}
+      .card{fill:#fff;stroke:#d7e0ed;stroke-width:2}.table{font:700 21px 'Segoe UI',Arial,sans-serif;fill:#17304f}
+      .key{font:600 16px 'Segoe UI',Arial,sans-serif;fill:#123b74}.field{font:16px 'Segoe UI',Arial,sans-serif;fill:#334155}
+      .note{font:14px 'Segoe UI',Arial,sans-serif;fill:#64748b}.chip{font:700 12px 'Segoe UI',Arial,sans-serif;fill:#fff}
+      .footer{font:15px 'Segoe UI',Arial,sans-serif;fill:#475569}
+    </style>
+  </defs>
+  <rect width="1800" height="1500" rx="30" fill="#f3f6fb"/>
+  <rect x="34" y="28" width="1732" height="118" rx="22" fill="url(#banner)"/>
+  <text x="74" y="78" class="title">Smart Leave Engine · DynamoDB schema</text>
+  <text x="75" y="112" class="subtitle">Table keys and observed attributes · indexes and fields marked “verify” need confirmation against the deployed tables</text>
+
+  <!-- EMPLOYEES -->
+  <g filter="url(#shadow)"><rect class="card" x="48" y="180" width="548" height="380" rx="18"/><path d="M48 198a18 18 0 0 1 18-18h512a18 18 0 0 1 18 18v48H48z" fill="#0f8b8d"/></g>
+  <text x="76" y="222" class="table" fill="#fff">EMPLOYEES</text>
+  <rect x="76" y="264" width="490" height="35" rx="10" fill="#e9f2ff"/><text x="92" y="287" class="key">employee_id · String · PK</text>
+  <text x="82" y="330" class="field">cognito_sub · String · CognitoSubIndex (GSI)</text>
+  <text x="82" y="365" class="field">manager_id · String · ManagerTeamIndex (GSI)</text>
+  <text x="82" y="400" class="field">employee_name · String</text><text x="82" y="435" class="field">employee_email · String</text>
+  <text x="82" y="470" class="field">department · String · designation · String</text><text x="82" y="505" class="field">role · String · hrmanager_id · String</text>
+  <text x="82" y="540" class="note">GSI sort keys/projections: verify in AWS</text>
+
+  <!-- LEAVE REQUESTS -->
+  <g filter="url(#shadow)"><rect class="card" x="626" y="180" width="548" height="380" rx="18"/><path d="M626 198a18 18 0 0 1 18-18h512a18 18 0 0 1 18 18v48H626z" fill="#2563eb"/></g>
+  <text x="654" y="222" class="table" fill="#fff">LEAVE_REQUESTS</text>
+  <rect x="654" y="264" width="490" height="35" rx="10" fill="#e9f2ff"/><text x="670" y="287" class="key">employee_id · String · PK</text>
+  <rect x="654" y="307" width="490" height="35" rx="10" fill="#e9f2ff"/><text x="670" y="330" class="key">request_id · String · SK</text>
+  <text x="660" y="373" class="field">leave_type · String · start_date/end_date · String</text>
+  <text x="660" y="408" class="field">total_days · Number · status · String</text><text x="660" y="443" class="field">manager_id · String · reason · String</text>
+  <text x="660" y="478" class="field">requires_hr_approval · Boolean</text><text x="660" y="513" class="field">manager_queue_key · index field (GSI verify)</text>
+  <text x="660" y="540" class="note">Employee display fields and ISO timestamps also stored</text>
+
+  <!-- LEAVE BALANCES -->
+  <g filter="url(#shadow)"><rect class="card" x="1204" y="180" width="548" height="380" rx="18"/><path d="M1204 198a18 18 0 0 1 18-18h512a18 18 0 0 1 18 18v48h-548z" fill="#6d3ed1"/></g>
+  <text x="1232" y="222" class="table" fill="#fff">LEAVE_BALANCES</text>
+  <rect x="1232" y="264" width="490" height="35" rx="10" fill="#e9f2ff"/><text x="1248" y="287" class="key">employee_id · String · PK</text>
+  <rect x="1232" y="307" width="490" height="35" rx="10" fill="#e9f2ff"/><text x="1248" y="330" class="key">balance_key · String · SK · TYPE#YEAR</text>
+  <text x="1238" y="373" class="field">allocated · Number · available · Number</text><text x="1238" y="408" class="field">used · Number</text>
+  <text x="1238" y="443" class="field">available_carry_forward_next_year · Number</text>
+  <rect x="1232" y="473" width="490" height="47" rx="10" fill="#eaf8ef"/><text x="1248" y="503" class="note" fill="#166534">All balance amounts must remain DynamoDB Numbers</text>
+
+  <!-- LEAVE TYPE CONFIG -->
+  <g filter="url(#shadow)"><rect class="card" x="48" y="590" width="548" height="380" rx="18"/><path d="M48 608a18 18 0 0 1 18-18h512a18 18 0 0 1 18 18v48H48z" fill="#0795a7"/></g>
+  <text x="76" y="632" class="table" fill="#fff">LEAVE_TYPE_CONFIG</text>
+  <rect x="76" y="674" width="490" height="35" rx="10" fill="#e9f2ff"/><text x="92" y="697" class="key">leave_type_id · String · PK</text>
+  <text x="82" y="743" class="field">annual_quota · Number</text><text x="82" y="778" class="field">carry_forward_max · Number</text>
+  <text x="82" y="813" class="field">is_unlimited · Boolean</text><text x="82" y="848" class="field">HR approval threshold · Number</text>
+  <rect x="76" y="878" width="490" height="50" rx="10" fill="#fff7e6"/><text x="92" y="900" class="note">Confirm exact threshold attribute spelling in Lambda</text><text x="92" y="920" class="note">Configured values: SICK · CASUAL · EARNED · UNPAID</text>
+
+  <!-- DATE LOCKS -->
+  <g filter="url(#shadow)"><rect class="card" x="626" y="590" width="548" height="380" rx="18"/><path d="M626 608a18 18 0 0 1 18-18h512a18 18 0 0 1 18 18v48H626z" fill="#e66b19"/></g>
+  <text x="654" y="632" class="table" fill="#fff">LEAVE_DATE_LOCKS</text>
+  <rect x="654" y="674" width="490" height="35" rx="10" fill="#e9f2ff"/><text x="670" y="697" class="key">employee_id · String · PK</text>
+  <rect x="654" y="717" width="490" height="35" rx="10" fill="#e9f2ff"/><text x="670" y="740" class="key">date_key · String · SK · YYYY-MM-DD</text>
+  <text x="660" y="793" class="field">request_id · String</text>
+  <rect x="654" y="830" width="490" height="70" rx="12" fill="#fff6ed"/><text x="672" y="860" class="note">One item per employee and requested weekday</text><text x="672" y="882" class="note">Used to prevent overlapping concurrent requests</text>
+
+  <!-- WORKFLOW TASKS -->
+  <g filter="url(#shadow)"><rect class="card" x="1204" y="590" width="548" height="380" rx="18"/><path d="M1204 608a18 18 0 0 1 18-18h512a18 18 0 0 1 18 18v48h-548z" fill="#d72f75"/></g>
+  <text x="1232" y="632" class="table" fill="#fff">LEAVE_WORKFLOW_TASKS</text>
+  <rect x="1232" y="674" width="490" height="35" rx="10" fill="#e9f2ff"/><text x="1248" y="697" class="key">request_id · String · PK</text>
+  <rect x="1232" y="717" width="490" height="35" rx="10" fill="#e9f2ff"/><text x="1248" y="740" class="key">approval_stage · String · SK · MANAGER/HR</text>
+  <rect x="1232" y="765" width="490" height="42" rx="10" fill="#fff0ef"/><text x="1248" y="792" class="field">task_token · Secret String</text>
+  <text x="1238" y="838" class="field">expires_at · Number · enable DynamoDB TTL</text><text x="1238" y="873" class="field">employee_id · String</text>
+  <text x="1238" y="922" class="note">Never expose callback tokens in screenshots or logs</text>
+
+  <!-- TEAM ABSENCES -->
+  <g filter="url(#shadow)"><rect class="card" x="626" y="1000" width="548" height="380" rx="18"/><path d="M626 1018a18 18 0 0 1 18-18h512a18 18 0 0 1 18 18v48H626z" fill="#5250c9"/></g>
+  <text x="654" y="1042" class="table" fill="#fff">TEAM_ABSENCES</text>
+  <rect x="654" y="1084" width="490" height="35" rx="10" fill="#fff7e6"/><text x="670" y="1107" class="key">Partition key · confirm name/type</text>
+  <rect x="654" y="1127" width="490" height="35" rx="10" fill="#fff7e6"/><text x="670" y="1150" class="key">Sort key · confirm name/type</text>
+  <text x="660" y="1200" class="field">Approved employee/date calendar attributes</text>
+  <rect x="654" y="1240" width="490" height="70" rx="12" fill="#fff7e6"/><text x="672" y="1270" class="note">Table is referenced by the app, but its deployed</text><text x="672" y="1292" class="note">keys and item fields still need verification</text>
+
+  <rect x="72" y="1410" width="1656" height="58" rx="14" fill="#e6edf6"/>
+  <text x="900" y="1446" text-anchor="middle" class="footer">Key attributes are enforced by DynamoDB. Other attributes are item fields; confirm unverified GSI and table details in the deployed AWS Console.</text>
+</svg>

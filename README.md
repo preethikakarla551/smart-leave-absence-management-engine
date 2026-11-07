@@ -69,7 +69,7 @@ flowchart LR
 
 ## DynamoDB schema overview
 
-![Smart Leave Engine DynamoDB schema overview](docs/schema/dynamodb-schema-overview.png)
+![Smart Leave Engine DynamoDB schema overview](docs/schema/dynamodb-schema-overview.svg)
 
 See the [DynamoDB schema documentation](docs/dynamodb-schema.md) for key attributes, table details, and quota rules.
 

@@ -4,7 +4,7 @@ This document records the Smart Leave Engine tables and indexes discussed for th
 
 ## Schema overview image
 
-![Smart Leave Engine DynamoDB schema overview](schema/dynamodb-schema-overview.png)
+![Smart Leave Engine DynamoDB schema overview](schema/dynamodb-schema-overview.svg)
 
 Each table has its own visual entity-and-attributes diagram, following the separate-table format used in the project examples. Open a table diagram from the links below.
 
